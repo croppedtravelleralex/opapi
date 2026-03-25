@@ -10,6 +10,29 @@
 
 ---
 
+## Round 2 (Plan)
+
+- 时间：2026-03-26
+- 主目标：明确 schema 设计范围，并锁定首批 Rust 模块骨架范围
+- 完成：
+  - 新建 `SCHEMA_SCOPE.md`
+  - 新建 `MODULE_SCOPE.md`
+  - 在 `ROADMAP.md` 中回写当前阶段已新增的两个范围定义
+  - 更新 `RUN_STATE.json`，将本轮 plan 状态标记为 completed
+- 产出文件：
+  - `SCHEMA_SCOPE.md`
+  - `MODULE_SCOPE.md`
+  - `ROADMAP.md`
+  - `RUN_STATE.json`
+- 验证：
+  - 本轮满足 plan 轮完成条件：已定义唯一主目标、已新增项目文件、已更新 roadmap、已更新 run state
+- 问题：
+  - schema 目前还是范围定义，尚未细化到具体 SQLite 建表草案
+  - 模块目前还是范围定义，尚未真正初始化 Rust 工程目录
+- 下一步：
+  - 进入 build 轮，开始把范围定义落成 Rust 工程骨架
+
+
 ## Round 0
 
 - 时间：2026-03-26

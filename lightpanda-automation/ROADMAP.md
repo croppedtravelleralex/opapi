@@ -107,12 +107,14 @@
 - 项目状态记录
 - 待办清单
 - 路线图
+- 第一阶段 schema 范围定义（`SCHEMA_SCOPE.md`）
+- 第一阶段模块范围定义（`MODULE_SCOPE.md`）
 
 当前缺少：
 - Rust 工程骨架
-- 代码模块目录
-- 数据模型
-- SQLite schema
+- 代码模块目录真正落地
+- 数据模型代码化
+- SQLite schema 真正落地
 - REST API 路由
 - queue / runner 实现
 - fake runner 闭环
