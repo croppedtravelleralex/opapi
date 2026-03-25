@@ -31,6 +31,7 @@
 - `DESIGN_NETWORK_IDENTITY.md` — 指纹 / 代理池 / 任务网络策略设计
 - `LONG_TERM_ROADMAP.md` — 中长期功能方向与演进顺序
 - `GOLDEN_FEATURES.md` — 高价值金子功能建议与难度/成功率评估
+- `EXECUTION_PROTOCOL.md` — 每5分钟/8小时周期执行协议
 
 ## 目录建议
 

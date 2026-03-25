@@ -3,6 +3,7 @@
 ## P0
 
 - [x] 建立项目核心文档（VISION / ROADMAP / STATUS / TODO / EXECUTION_LOG / RUN_STATE）
+- [x] 建立周期执行协议（EXECUTION_PROTOCOL）
 - [ ] 初始化 Rust 工程（Cargo）
 - [ ] 设计任务数据模型（Task / Run / Artifact / Log）
 - [ ] 设计 SQLite schema
