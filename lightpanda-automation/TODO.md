@@ -18,6 +18,8 @@
 - [ ] 增加执行历史与审计字段
 - [ ] 设计 runner trait / adapter interface
 - [ ] 为 `lightpanda-io/browser` 预留适配层
+- [ ] 设计浏览器指纹能力边界
+- [ ] 设计代理池与代理轮换策略
 
 ## P2
 
