@@ -15,7 +15,7 @@
 
 | 项目名 | 状态 | 优先级 | 路径 | 负责人 | 最后更新 | 备注 |
 |---|---|---|---|---|---|---|
-| lightpanda-automation | 规划中 | P1 | lightpanda-automation/ | 待定 | 2026-03-25 | 高性能浏览器自动化系统；规划技术栈为 Rust + SQLite + REST API + 内存任务队列 + fake runner，后续接入 lightpanda-io/browser |
+| lightpanda-automation | 规划中 | P1 | lightpanda-automation/ | 待定 | 2026-03-26 | 已创建项目目录骨架与 README / STATUS / TODO；当前仍处于架构定义阶段，下一步建议初始化 Rust 工程并打通最小任务闭环 |
 
 ## 约定
 
