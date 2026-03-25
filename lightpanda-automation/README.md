@@ -28,6 +28,7 @@
 - `RUN_STATE.json` — 自动推进的轮次状态
 - `AUTONOMY_PLAN.md` — 周期执行规则
 - `CURRENT_DIRECTION.md` — 当前阶段方向说明
+- `DESIGN_NETWORK_IDENTITY.md` — 指纹 / 代理池 / 任务网络策略设计
 
 ## 目录建议
 

@@ -29,3 +29,24 @@
 - 下一步：
   - 建立 `RUN_STATE.json`
   - 初始化 Rust 工程
+
+## Round 1
+
+- 时间：2026-03-26
+- 动作：补充网络与身份层设计文档
+- 完成：
+  - 新建 `DESIGN_NETWORK_IDENTITY.md`
+  - 明确 FingerprintProfile / FingerprintStrategy 模型方向
+  - 明确 ProxyEndpoint / ProxyPoolPolicy / ProxyValidation / ProxyAllocation 模型方向
+  - 明确 TaskNetworkPolicy 方向
+  - 明确“所有访问强制走代理池”的原则
+  - 明确可用代理比例 40%-60% 与并发动态阈值思路
+- 验证：
+  - 设计文档已落地
+  - 项目北极星与 TODO 已同步更新
+- 发现问题：
+  - 目前仍缺正式数据库表设计
+  - 目前仍缺 Rust 代码模块承接该设计
+- 下一步：
+  - 细化 schema 草案
+  - 初始化 Rust 工程骨架并预留 network_identity 模块
