@@ -35,6 +35,7 @@
 - `EXECUTION_STATE_MACHINE.md` — 自动执行状态机
 - `EXECUTION_CHECKLIST.md` — 每轮执行检查清单
 - `ROUND_RESULT.template.json` — 单轮结果模板
+- `ROUND_SCHEDULER.md` — 轮次调度器设计
 
 ## 目录建议
 

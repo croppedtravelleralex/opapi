@@ -10,6 +10,33 @@
 
 ---
 
+## Round 3 (Scheduler Design)
+
+- 时间：2026-03-26
+- 主目标：补出轮次调度器设计，让自动执行方案从协议升级为可推进系统
+- 完成：
+  - 新建 `ROUND_SCHEDULER.md`
+  - 在 `RUN_STATE.json` 中增加调度字段：
+    - `lastSchedulerDecision`
+    - `nextRoundType`
+    - `nextPlannedAt`
+    - `schedulerStatus`
+  - 将下一轮明确设定为 `build`
+- 产出文件：
+  - `ROUND_SCHEDULER.md`
+  - `RUN_STATE.json`
+  - `README.md`
+  - `TODO.md`
+- 验证：
+  - 调度器设计已落地
+  - 当前系统已能表达“上一轮是什么、下一轮是什么、调度器是否已接管”
+- 问题：
+  - 调度器目前还是设计状态，尚未真正作为脚本/命令运行
+  - 自动轮转仍未进入 cron 接管阶段
+- 下一步：
+  - 先执行 build 轮真实落地
+  - 再做 1 个 mini-cycle 调度试运行
+
 ## Round 2 (Plan)
 
 - 时间：2026-03-26
