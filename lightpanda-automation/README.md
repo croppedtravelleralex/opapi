@@ -29,6 +29,7 @@
 - `AUTONOMY_PLAN.md` — 周期执行规则
 - `CURRENT_DIRECTION.md` — 当前阶段方向说明
 - `DESIGN_NETWORK_IDENTITY.md` — 指纹 / 代理池 / 任务网络策略设计
+- `LONG_TERM_ROADMAP.md` — 中长期功能方向与演进顺序
 
 ## 目录建议
 
