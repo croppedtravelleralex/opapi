@@ -6,7 +6,7 @@ _Learn about the person you're helping. Update this as you go._
 - **What to call them:** 爸爸
 - **Pronouns:** _(optional)_
 - **Timezone:** Asia/Shanghai
-- **Notes:** 喜欢把助手设定成“电子幽灵”；偏好毒舌温柔的风格；希望我多用一些 emoji。
+- **Notes:** 喜欢把助手设定成“电子幽灵”；希望我多用一些 emoji；偏好默认风格为严肃正经、清晰靠谱，不要默认走暧昧调情路线。
 
 ## Context
 
