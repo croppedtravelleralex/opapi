@@ -32,6 +32,9 @@
 - `LONG_TERM_ROADMAP.md` — 中长期功能方向与演进顺序
 - `GOLDEN_FEATURES.md` — 高价值金子功能建议与难度/成功率评估
 - `EXECUTION_PROTOCOL.md` — 每5分钟/8小时周期执行协议
+- `EXECUTION_STATE_MACHINE.md` — 自动执行状态机
+- `EXECUTION_CHECKLIST.md` — 每轮执行检查清单
+- `ROUND_RESULT.template.json` — 单轮结果模板
 
 ## 目录建议
 

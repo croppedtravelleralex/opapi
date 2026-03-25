@@ -60,3 +60,4 @@
   - 初始化 Rust 工程骨架并预留 network_identity 模块
   - 补 proxy harvester 设计文档
   - 将磁盘监控、落盘节制、性能护栏纳入工程设计
+  - 建立自动执行内核并进行 mini-cycle 试运行
