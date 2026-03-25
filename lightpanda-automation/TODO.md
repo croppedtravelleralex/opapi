@@ -50,3 +50,4 @@
 - [ ] 截图 / HTML / console log 的存储方式
 - [ ] 多租户/多用户隔离是否是近期目标
 - [ ] 是否需要 webhook / callback 通知
+- [ ] `GOLDEN_FEATURES.md` 中哪些能力应前置到中期优先级
