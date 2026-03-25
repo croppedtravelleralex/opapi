@@ -111,3 +111,27 @@
   - 补 proxy harvester 设计文档
   - 将磁盘监控、落盘节制、性能护栏纳入工程设计
   - 建立自动执行内核并进行 mini-cycle 试运行
+
+## Round 3 (Build)
+
+- 时间：2026-03-26T02:05:38+08:00
+- 主目标：明确 schema 设计范围，并锁定首批 Rust 模块骨架范围
+- 完成：
+  - Initialized Rust skeleton
+- 产出文件：
+  - `Cargo.toml`
+  - `src/app/mod.rs`
+  - `src/api/mod.rs`
+  - `src/domain/mod.rs`
+  - `src/db/mod.rs`
+  - `src/queue/mod.rs`
+  - `src/runner/mod.rs`
+  - `src/network_identity/mod.rs`
+  - `src/lib.rs`
+  - `src/main.rs`
+- 验证：
+  - 已初始化 Rust 工程骨架，并落地首批模块目录。
+- 问题：
+  - 无新增关键问题
+- 下一步：
+  - 进入 verify 轮，检查工程结构与基础可编译性。
