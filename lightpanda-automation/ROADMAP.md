@@ -1,0 +1,149 @@
+# ROADMAP.md
+
+`lightpanda-automation` 的滚动路线图。
+
+> 原则：每次执行前后都更新，覆盖过去 / 现在 / 未来，避免项目推进时迷失方向。
+
+---
+
+## 0. 北极星：最终效果
+
+目标不是只做一个“能跑任务的后端”，而是做一个运行在 Ubuntu 上的、可持续演进的高性能浏览器自动化系统，具备以下最终效果：
+
+- 对外提供清晰稳定的 REST API
+- 能接收自动化任务、排队、执行、追踪状态、返回结果
+- 在早期可通过 fake runner 跑通闭环
+- 在后期可无缝切换到 `lightpanda-io/browser` 真实浏览器执行引擎
+- 有明确的任务模型、执行记录、日志、artifact 管理方式
+- 具备基本的 bug 检查、功能验证与阶段汇总机制
+- 文档与代码保持同步，不靠“脑补架构”推进
+
+---
+
+## 1. 最终要实现的核心功能
+
+### 1.1 任务生命周期管理
+- 创建任务
+- 查询任务
+- 排队任务
+- 执行任务
+- 取消任务
+- 重试任务
+- 标记任务成功/失败/超时
+
+### 1.2 执行引擎抽象
+- fake runner：用于开发期闭环验证
+- real runner adapter：用于接入 `lightpanda-io/browser`
+- runner trait / interface 保持统一
+
+### 1.3 数据持久化
+- SQLite 存储任务元数据
+- 存储执行记录（run history）
+- 存储日志索引与 artifact 元信息
+- 支持后续迁移/升级
+
+### 1.4 REST API
+- 健康检查
+- 创建任务
+- 查询任务状态
+- 查询任务结果
+- 查询执行历史
+- 取消/重试任务
+
+### 1.5 观测与验证
+- 结构化日志
+- 基础错误分类
+- 最小 smoke test
+- 偶数轮执行时进行 bug 检查与功能验证
+
+### 1.6 文档系统
+- README：项目目标与使用方式
+- STATUS：当前状态与风险
+- TODO：任务清单
+- ROADMAP：路线图
+- EXECUTION_LOG：每轮执行日志
+
+---
+
+## 2. 过去（已完成）
+
+- 已在根目录建立 `PROJECTS.md`
+- 已登记 `lightpanda-automation` 项目
+- 已创建项目目录
+- 已创建基础文档：`README.md` / `STATUS.md` / `TODO.md`
+- 已明确总体技术方向：Rust + SQLite + REST API + 内存任务队列 + fake runner
+- 已明确未来真实执行引擎：`lightpanda-io/browser`
+- 已确认需要把“最终效果 / 最终功能”写入文档，避免项目推进跑偏
+
+---
+
+## 3. 现在（当前阶段）
+
+当前处于：**架构定义 + 工程初始化准备阶段**。
+
+当前已有：
+- 项目文档骨架
+- 项目状态记录
+- 待办清单
+- 路线图
+
+当前缺少：
+- Rust 工程骨架
+- 代码模块目录
+- 数据模型
+- SQLite schema
+- REST API 路由
+- queue / runner 实现
+- fake runner 闭环
+
+---
+
+## 4. 未来（推荐推进顺序）
+
+### 阶段 A：工程初始化
+1. 初始化 Cargo 工程
+2. 建立 `src/` 模块骨架
+3. 明确模块边界（api/db/queue/runner/domain）
+
+### 阶段 B：核心数据模型
+1. 设计 Task / Run / Artifact / Log 模型
+2. 设计 SQLite schema
+3. 设计状态流转规则
+
+### 阶段 C：最小可运行闭环
+1. 创建 REST API 最小接口
+2. 实现内存队列
+3. 实现 fake runner
+4. 跑通创建任务 -> 入队 -> 执行 -> 状态更新 -> 查询结果
+
+### 阶段 D：验证与稳定性
+1. 加入最小测试
+2. 健康检查与 smoke test
+3. bug 检查与执行验证机制
+4. 日志/错误分类完善
+
+### 阶段 E：真实引擎接入
+1. 抽象 runner trait
+2. 接入 `lightpanda-io/browser`
+3. 验证 fake runner -> real runner 的切换能力
+
+---
+
+## 5. 执行纪律
+
+每次自动执行都应遵守：
+
+1. 执行前更新 roadmap（过去 / 现在 / 未来）
+2. 做一个最小但真实的推进动作
+3. 执行后更新 roadmap
+4. 写入 `EXECUTION_LOG.md`
+5. 偶数轮进行 bug 检查与功能验证
+6. 每 4 轮输出一次阶段汇总
+
+---
+
+## 6. 当前最近一步
+
+当前最合理的下一步：
+
+> 初始化 Rust 工程骨架，并补齐 `EXECUTION_LOG.md` 与 `RUN_STATE.json`。

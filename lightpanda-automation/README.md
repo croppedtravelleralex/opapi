@@ -18,6 +18,17 @@
 
 当前处于项目骨架与架构定义阶段。
 
+## 关键文档
+
+- `VISION.md` — 最终效果与最终功能定义
+- `ROADMAP.md` — 过去 / 现在 / 未来的滚动路线图
+- `STATUS.md` — 当前状态、风险、下一步
+- `TODO.md` — 任务分层清单
+- `EXECUTION_LOG.md` — 每轮执行记录
+- `RUN_STATE.json` — 自动推进的轮次状态
+- `AUTONOMY_PLAN.md` — 周期执行规则
+- `CURRENT_DIRECTION.md` — 当前阶段方向说明
+
 ## 目录建议
 
 - `src/` — Rust 主程序与模块
