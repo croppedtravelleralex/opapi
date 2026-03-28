@@ -17,7 +17,7 @@
 - `cleanup: "delete"`
 - `thread: false`
 - `thinking: "medium"`
-- `model: "default"`
+- `model: "newapi/gpt-5.4"`
 
 ### 不默认使用
 - `mode: "session"`
@@ -56,7 +56,7 @@
   "cwd": "/absolute/project/path",
   "label": "short-clear-task-name",
   "mode": "run",
-  "model": "default",
+  "model": "newapi/gpt-5.4",
   "resumeSessionId": "",
   "runTimeoutSeconds": 900,
   "runtime": "subagent",
@@ -285,7 +285,7 @@
   "cwd": "/absolute/project/path",
   "label": "task-name",
   "mode": "run",
-  "model": "default",
+  "model": "newapi/gpt-5.4",
   "runTimeoutSeconds": 900,
   "runtime": "subagent",
   "sandbox": "inherit",
