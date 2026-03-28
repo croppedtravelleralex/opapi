@@ -269,3 +269,62 @@
 ## 9. 一句话版默认模板
 
 > **子 agent 默认按：`subagent + run + inherit sandbox + delete cleanup + medium thinking + 结构化输出` 来开。**
+
+---
+
+## 10. 超短实战版（默认直接套用）
+
+### 10.1 超短参数模板
+
+```json
+{
+  "agentId": "main",
+  "attachAs": { "mountPath": "/workspace" },
+  "attachments": [],
+  "cleanup": "delete",
+  "cwd": "/absolute/project/path",
+  "label": "task-name",
+  "mode": "run",
+  "model": "default",
+  "runTimeoutSeconds": 900,
+  "runtime": "subagent",
+  "sandbox": "inherit",
+  "task": "<structured task>",
+  "thinking": "medium",
+  "thread": false,
+  "timeoutSeconds": 900
+}
+```
+
+### 10.2 超短任务词模板
+
+```text
+你是一个子 agent，负责一个单一明确任务。
+
+任务目标：<一句话目标>
+工作范围：
+- 只处理：<范围>
+- 不要处理：<边界>
+- 不要安装软件
+- 不要做破坏性改动
+
+输出要求：
+必须按这个格式回复：
+1. 结论：<一句话结论>
+2. 发现：
+   - <发现1>
+   - <发现2>
+3. 建议：
+   - <建议1>
+   - <建议2>
+4. 若未完成：
+   - <阻塞点>
+```
+
+### 10.3 超短使用规则
+
+- **默认只用 `mode=run`**
+- **默认不碰 `session`**
+- **默认必须结构化输出**
+- **返回空结果 = 机制跑通、产出无效**
+- **空结果后主线程必须兜底，不准硬装成功**
