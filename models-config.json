@@ -1,0 +1,213 @@
+{
+  "providers": {
+    "iflow": {
+      "baseUrl": "https://apis.iflow.cn/v1",
+      "apiKey": "sk-10af8f491bcdfb5b5bd1080a588108c4",
+      "auth": "api-key",
+      "api": "openai-completions",
+      "headers": {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) OpenClaw/2026.3.24",
+        "Accept": "application/json"
+      },
+      "authHeader": true,
+      "models": [
+        {
+          "id": "deepseek-v3.2",
+          "name": "DeepSeek V3.2",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "deepseek-v3",
+          "name": "DeepSeek V3",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "deepseek-r1",
+          "name": "DeepSeek R1",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "iflow-rome-30ba3b",
+          "name": "iFlow Rome 30ba3b",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "kimi-k2",
+          "name": "Kimi K2",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "kimi-k2-0905",
+          "name": "Kimi K2 0905",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-235b",
+          "name": "Qwen3 235B",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-235b-a22b-instruct",
+          "name": "Qwen3 235B A22B Instruct",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-235b-a22b-thinking-2507",
+          "name": "Qwen3 235B A22B Thinking",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-32b",
+          "name": "Qwen3 32B",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-coder-plus",
+          "name": "Qwen3 Coder Plus",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-max",
+          "name": "Qwen3 Max",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-max-preview",
+          "name": "Qwen3 Max Preview",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        },
+        {
+          "id": "qwen3-vl-plus",
+          "name": "Qwen3 VL Plus",
+          "reasoning": true,
+          "input": ["text"],
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0
+          },
+          "contextWindow": 400000,
+          "maxTokens": 128000
+        }
+      ]
+    }
+  }
+}
