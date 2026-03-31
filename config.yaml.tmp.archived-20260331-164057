@@ -1,0 +1,133 @@
+host: 127.0.0.1
+port: 18317
+tls:
+  enable: false
+  cert: ''
+  key: ''
+remote-management:
+  allow-remote: false
+  secret-key: ''
+  disable-control-panel: false
+  panel-github-repository: https://github.com/router-for-me/Cli-Proxy-API-Management-Center
+auth-dir: ~/.cli-proxy-api
+api-keys:
+- cpa-87ffc48fbdf9e3b5627abd5725de6f8de4e2e8ef1c6ca65a
+debug: false
+pprof:
+  enable: false
+  addr: 127.0.0.1:8316
+commercial-mode: false
+logging-to-file: false
+logs-max-total-size-mb: 0
+error-logs-max-files: 10
+usage-statistics-enabled: false
+proxy-url: ''
+force-model-prefix: false
+passthrough-headers: false
+request-retry: 3
+max-retry-credentials: 0
+max-retry-interval: 30
+quota-exceeded:
+  switch-project: true
+  switch-preview-model: true
+routing:
+  strategy: round-robin
+ws-auth: false
+nonstream-keepalive-interval: 0
+openai-compatibility:
+- name: kunkunout
+  base-url: https://api.kunkunout.cn/v1
+  api-key-entries:
+  - api-key: sk-MMP6VqHBwlfsjXPVGqKv37rkMgd2O5LlWNzCz8I3MPEX2r25
+  models:
+  - name: claude-3-5-haiku-20241022
+    alias: kunkun-claude-3-5-haiku-20241022
+  - name: claude-3-5-sonnet-20240620
+    alias: kunkun-claude-3-5-sonnet-20240620
+  - name: claude-3-5-sonnet-20241022
+    alias: kunkun-claude-3-5-sonnet-20241022
+  - name: claude-3-7-sonnet-20250219
+    alias: kunkun-claude-3-7-sonnet-20250219
+  - name: claude-3-7-sonnet-20250219-thinking
+    alias: kunkun-claude-3-7-sonnet-20250219-thinking
+  - name: claude-3-haiku-20240307
+    alias: kunkun-claude-3-haiku-20240307
+  - name: claude-3-sonnet-20240229
+    alias: kunkun-claude-3-sonnet-20240229
+  - name: claude-haiku-4-5-20251001
+    alias: kunkun-claude-haiku-4-5-20251001
+  - name: claude-sonnet-4-20250514
+    alias: kunkun-claude-sonnet-4-20250514
+  - name: claude-sonnet-4-20250514-thinking
+    alias: kunkun-claude-sonnet-4-20250514-thinking
+  - name: claude-sonnet-4-5-20250929
+    alias: kunkun-claude-sonnet-4-5-20250929
+  - name: claude-sonnet-4-5-20250929-thinking
+    alias: kunkun-claude-sonnet-4-5-20250929-thinking
+  - name: claude-sonnet-4-6
+    alias: kunkun-claude-sonnet-4-6
+  - name: claude-sonnet-4-5-20250929
+    alias: primary-main
+  - name: claude-3-7-sonnet-20250219-thinking
+    alias: reasoning-main
+  - name: qwen3-vl-30b-a3b-thinking
+    alias: vision-main
+  - name: claude-3-7-sonnet-20250219
+    alias: fallback-main
+- name: tokenx24
+  base-url: https://tokenx24.com/v1
+  api-key-entries:
+  - api-key: sk-75dcb9c91fb0e7d5c1ed3e20af1f64d1f4693aec9a14a50ac043e4812bad76d5
+  models:
+  - name: gpt-4o-mini
+    alias: gpt-4o-mini
+  - name: gpt-4o
+    alias: gpt-4o
+  - name: gpt-4.1
+    alias: gpt-4.1
+  - name: gpt-4.1-mini
+    alias: gpt-4.1-mini
+  - name: o3
+    alias: o3
+  - name: o4-mini
+    alias: o4-mini
+  - name: gpt-5
+    alias: gpt-5
+  - name: gpt-5-mini
+    alias: gpt-5-mini
+  - name: gpt-5-chat-latest
+    alias: gpt-5-chat-latest
+  - name: gpt-5.4
+    alias: chatgpt-main
+- name: xiaweiliang
+  base-url: https://vip.xiaweiliang.cn/v1
+  api-key-entries:
+  - api-key: sk-SgAn6sa0P0MRxKHdY9y6jw74SiiOkiXr9AQV2V34BipHDbhc
+  models:
+  - name: gemini-2.5-flash
+    alias: xiaweiliang-flash
+  - name: gemini-2.5-pro
+    alias: xiaweiliang-pro
+  - name: gemini-3-pro-preview
+    alias: xiaweiliang-gemini-3-pro
+  - name: '[M渠道][15额度/次]gpt-5.4'
+    alias: xiaweiliang-gpt-5.4
+  - name: '[M渠道][20额度/次][R]claude-sonnet-4-6'
+    alias: xiaweiliang-claude-sonnet-4-6
+  - name: '[K渠道][150额度/次][薄甲]claude-opus-4-6'
+    alias: xiaweiliang-claude-opus-4-6
+- name: neoverse
+  base-url: https://neoverse.de5.net/v1
+  api-key-entries:
+  - api-key: sk-AuhUJ5sb3gnIOWN8u8yP12m56zySU3ulyw8ADpIQsMdmjQkF
+  models:
+  - name: gpt-5.4
+    alias: neoverse-gpt-5.4
+  - name: gpt-4o
+    alias: neoverse-gpt-4o
+  - name: gpt-4o-mini
+    alias: neoverse-gpt-4o-mini
+  - name: gpt-4
+    alias: neoverse-gpt-4
+  - name: gpt-3.5-turbo
+    alias: neoverse-gpt-3.5-turbo
