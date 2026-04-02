@@ -1,4 +1,6 @@
 pub mod account;
+pub mod change_plan;
+pub mod config_snapshot;
 pub mod model_availability;
 pub mod model_catalog;
 pub mod models;
@@ -6,4 +8,5 @@ pub mod openai;
 pub mod provider;
 pub mod provider_capability;
 pub mod provider_pool;
+pub mod release_record;
 pub mod routing;
