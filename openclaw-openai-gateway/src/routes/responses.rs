@@ -24,6 +24,7 @@ pub async fn create_response(
     let decision = decide_provider(&payload.model, &default_policy());
     let explain_text = explain(&decision);
     let audit = routing_event(&decision);
+    state.audit_repo.append(&audit);
 
     let result = state
         .gateway_provider

@@ -7,6 +7,7 @@ mod governance;
 mod middleware;
 mod observability;
 mod providers;
+mod repositories;
 mod routes;
 mod routing;
 mod state;

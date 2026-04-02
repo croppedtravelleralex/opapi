@@ -21,7 +21,8 @@ pub struct ModelItem {
 pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<ModelList> {
     let now = Utc::now().timestamp();
     let data = state
-        .model_catalog
+        .model_repo
+        .list()
         .iter()
         .map(|entry| ModelItem {
             id: entry.alias.clone().unwrap_or_else(|| entry.canonical_name.clone()),
