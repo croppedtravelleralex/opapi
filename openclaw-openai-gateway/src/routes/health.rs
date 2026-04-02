@@ -5,13 +5,14 @@ use std::sync::Arc;
 
 #[derive(Serialize)]
 pub struct HealthResponse {
-    status: String,
+    pub status: String,
 }
 
 #[derive(Serialize)]
 pub struct ReadyResponse {
-    status: String,
-    upstream: String,
+    pub status: String,
+    pub upstream: String,
+    pub providers_total: usize,
 }
 
 pub async fn healthz() -> Json<HealthResponse> {
@@ -28,6 +29,7 @@ pub async fn readyz(
         Ok(Json(ReadyResponse {
             status: "ready".into(),
             upstream: "ok".into(),
+            providers_total: state.sqlite_provider_repo.list().len(),
         }))
     } else {
         Err(AppError::UpstreamUnavailable)

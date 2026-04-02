@@ -21,7 +21,7 @@ pub async fn create_response(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResponsesRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let decision = decide_provider(&payload.model, &default_policy());
+    let decision = decide_provider(&payload.model, &default_policy(), Some(state.as_ref()));
     let explain_text = explain(&decision);
     let audit = routing_event(&decision);
     state.audit_repo.append(&audit);

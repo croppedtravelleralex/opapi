@@ -33,7 +33,7 @@ pub async fn create_chat_completion(
         .map(|m| m.content.clone())
         .unwrap_or_default();
 
-    let decision = decide_provider(&payload.model, &default_policy());
+    let decision = decide_provider(&payload.model, &default_policy(), Some(state.as_ref()));
     let explain_text = explain(&decision);
     let audit = routing_event(&decision);
     state.audit_repo.append(&audit);

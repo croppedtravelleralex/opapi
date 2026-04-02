@@ -1,4 +1,5 @@
 use crate::domain::routing::{RoutingDecision, RoutingPolicy};
+use crate::state::AppState;
 
 pub fn default_policy() -> RoutingPolicy {
     RoutingPolicy {
@@ -6,10 +7,15 @@ pub fn default_policy() -> RoutingPolicy {
     }
 }
 
-pub fn decide_provider(model: &str, policy: &RoutingPolicy) -> RoutingDecision {
+pub fn decide_provider(model: &str, policy: &RoutingPolicy, state: Option<&AppState>) -> RoutingDecision {
+    let provider = state
+        .and_then(|s| s.sqlite_provider_repo.list().into_iter().find(|p| p.enabled))
+        .map(|p| p.id)
+        .unwrap_or_else(|| policy.default_provider.clone());
+
     RoutingDecision {
         model: model.to_string(),
-        selected_provider: policy.default_provider.clone(),
-        reason: "default gateway provider selected".into(),
+        selected_provider: provider,
+        reason: "sqlite-backed provider selected".into(),
     }
 }

@@ -1,4 +1,9 @@
-use crate::domain::{models::ModelCatalogEntry, provider::ProviderDescriptor};
+use crate::domain::{
+    model_availability::ModelAvailability,
+    models::ModelCatalogEntry,
+    provider::ProviderDescriptor,
+    provider_capability::ProviderCapability,
+};
 use crate::repositories::store::InMemoryStore;
 use rusqlite::{params, Connection};
 use serde_json::json;
@@ -48,6 +53,19 @@ impl SqliteModelRepository {
                 latency_score REAL NOT NULL DEFAULT 0.0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS provider_capabilities (
+                id TEXT PRIMARY KEY,
+                provider_id TEXT NOT NULL,
+                model_name TEXT NOT NULL,
+                supports_stream INTEGER NOT NULL DEFAULT 0,
+                supports_responses_api INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS model_availability (
+                id TEXT PRIMARY KEY,
+                model_name TEXT NOT NULL,
+                provider_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'available'
             );"
         ).map_err(|e| e.to_string())?;
         Ok(())
@@ -128,6 +146,28 @@ impl SqliteProviderRepository {
                     format!("{:?}", entry.class),
                     entry.id,
                     if entry.enabled { 1 } else { 0 }
+                ],
+            ).map_err(|e| e.to_string())?;
+
+            conn.execute(
+                "INSERT OR REPLACE INTO provider_capabilities (
+                    id, provider_id, model_name, supports_stream, supports_responses_api
+                ) VALUES (?1, ?2, ?3, 0, 1)",
+                params![
+                    format!("{}::openclaw-default", entry.id),
+                    entry.id,
+                    "openclaw-default"
+                ],
+            ).map_err(|e| e.to_string())?;
+
+            conn.execute(
+                "INSERT OR REPLACE INTO model_availability (
+                    id, model_name, provider_id, status
+                ) VALUES (?1, ?2, ?3, 'available')",
+                params![
+                    format!("openclaw-default::{}", entry.id),
+                    "openclaw-default",
+                    entry.id
                 ],
             ).map_err(|e| e.to_string())?;
         }
