@@ -8,6 +8,7 @@ pub struct Config {
     pub openclaw_api_timeout_ms: u64,
     pub api_keys: Vec<String>,
     pub models: Vec<String>,
+    pub sqlite_path: String,
 }
 
 impl Config {
@@ -39,6 +40,9 @@ impl Config {
             .map(|s| s.trim().to_string())
             .collect::<Vec<_>>();
 
+        let sqlite_path = env::var("SQLITE_PATH")
+            .unwrap_or_else(|_| "dev.sqlite3".into());
+
         Ok(Self {
             app_host,
             app_port,
@@ -46,6 +50,7 @@ impl Config {
             openclaw_api_timeout_ms,
             api_keys,
             models,
+            sqlite_path,
         })
     }
 }

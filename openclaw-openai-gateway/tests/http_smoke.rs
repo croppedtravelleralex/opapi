@@ -13,6 +13,7 @@ async fn test_app() -> axum::Router {
         openclaw_api_timeout_ms: 50,
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
+        sqlite_path: "/tmp/openclaw-gateway-test.sqlite3".into(),
     };
     let state = Arc::new(AppState::new(config).await.unwrap());
     build_app(state)

@@ -12,6 +12,7 @@ use crate::{
         audit_repo::AuditRepository,
         model_repo::ModelRepository,
         provider_repo::ProviderRepository,
+        sqlite::{SqliteModelRepository, SqliteProviderRepository},
         store::InMemoryStore,
     },
 };
@@ -44,6 +45,11 @@ impl AppState {
         let audit_repo = AuditRepository::new(store.clone());
         model_repo.replace_all(model_catalog.clone());
         provider_repo.replace_all(provider_pool.clone());
+
+        let sqlite_model_repo = SqliteModelRepository::new(config.sqlite_path.clone(), store.clone());
+        let sqlite_provider_repo = SqliteProviderRepository::new(config.sqlite_path.clone(), store.clone());
+        let _ = sqlite_model_repo.seed_models(&model_catalog);
+        let _ = sqlite_provider_repo.seed_providers(&provider_pool);
 
         Ok(Self {
             config,
