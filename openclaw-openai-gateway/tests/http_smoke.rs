@@ -56,6 +56,21 @@ async fn models_returns_list() {
 }
 
 #[tokio::test]
+async fn sqlite_file_is_seeded() {
+    let _app = test_app().await;
+    let db_path = "/tmp/openclaw-gateway-test.sqlite3";
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let model_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM model_catalog", [], |row| row.get(0))
+        .unwrap();
+    let provider_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM providers", [], |row| row.get(0))
+        .unwrap();
+    assert!(model_count >= 1);
+    assert!(provider_count >= 1);
+}
+
+#[tokio::test]
 async fn chat_returns_upstream_unavailable_when_gateway_unreachable() {
     let app = test_app().await;
     let response = app

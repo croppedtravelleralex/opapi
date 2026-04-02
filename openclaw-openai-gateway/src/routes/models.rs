@@ -21,7 +21,7 @@ pub struct ModelItem {
 pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<ModelList> {
     let now = Utc::now().timestamp();
     let data = state
-        .model_repo
+        .sqlite_model_repo
         .list()
         .iter()
         .map(|entry| ModelItem {

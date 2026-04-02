@@ -28,6 +28,8 @@ pub struct AppState {
     pub model_repo: ModelRepository,
     pub provider_repo: ProviderRepository,
     pub audit_repo: AuditRepository,
+    pub sqlite_model_repo: SqliteModelRepository,
+    pub sqlite_provider_repo: SqliteProviderRepository,
 }
 
 impl AppState {
@@ -61,6 +63,8 @@ impl AppState {
             model_repo,
             provider_repo,
             audit_repo,
+            sqlite_model_repo,
+            sqlite_provider_repo,
         })
     }
 }
