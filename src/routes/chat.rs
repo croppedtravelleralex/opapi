@@ -5,9 +5,9 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 
-use crate::config::Config;
+use crate::{config::Config, error::gateway_error};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChatCompletionRequest {
@@ -24,39 +24,27 @@ pub struct ChatMessage {
     pub content: String,
 }
 
-fn gateway_error(status: StatusCode, message: impl Into<String>, err_type: &str) -> Response {
-    (
-        status,
-        Json(json!({
-            "error": {
-                "message": message.into(),
-                "type": err_type
-            }
-        })),
-    )
-        .into_response()
-}
-
 pub async fn create_chat_completion(
     State(config): State<Config>,
     Json(payload): Json<ChatCompletionRequest>,
 ) -> Response {
-    let upstream_base_url = match &config.upstream_base_url {
-        Some(v) => v.clone(),
-        None => return gateway_error(StatusCode::BAD_REQUEST, "missing UPSTREAM_BASE_URL", "configuration_error"),
-    };
-
-    let upstream_api_key = match &config.upstream_api_key {
-        Some(v) => v.clone(),
-        None => return gateway_error(StatusCode::BAD_REQUEST, "missing UPSTREAM_API_KEY", "configuration_error"),
+    let upstream = match config.upstream_for_model(&payload.model) {
+        Some(v) => v,
+        None => {
+            return gateway_error(
+                StatusCode::BAD_REQUEST,
+                format!("no upstream configured for model '{}'", payload.model),
+                "routing_error",
+            )
+        }
     };
 
     let client = reqwest::Client::new();
-    let upstream_url = format!("{}/v1/chat/completions", upstream_base_url);
+    let upstream_url = format!("{}/v1/chat/completions", upstream.base_url);
 
     let response = match client
         .post(&upstream_url)
-        .bearer_auth(upstream_api_key)
+        .bearer_auth(upstream.api_key)
         .json(&payload)
         .send()
         .await
