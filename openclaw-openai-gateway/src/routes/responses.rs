@@ -1,6 +1,12 @@
-use crate::{error::AppError, providers::ProviderAdapter, state::AppState};
-use axum::{extract::State, Json};
-use serde::{Deserialize, Serialize};
+use crate::{
+    error::AppError,
+    observability::explain::explain,
+    providers::ProviderAdapter,
+    routing::policy::{decide_provider, default_policy},
+    state::AppState,
+};
+use axum::{extract::State, response::IntoResponse, Json};
+use serde::Deserialize;
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -11,20 +17,18 @@ pub struct ResponsesRequest {
     pub stream: Option<bool>,
 }
 
-#[derive(Serialize)]
-pub struct ResponsesResponsePlaceholder {
-    pub ignored: bool,
-}
-
 pub async fn create_response(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResponsesRequest>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
+    let decision = decide_provider(&payload.model, &default_policy());
+    let explain_text = explain(&decision);
+
     let result = state
         .gateway_provider
         .response(&payload.model, &payload.input)
         .await
         .map_err(|_| AppError::UpstreamUnavailable)?;
 
-    Ok(Json(result))
+    Ok(([ ("x-routing-explain", explain_text) ], Json(result)))
 }

@@ -1,10 +1,13 @@
 mod app;
 mod bridge;
 mod config;
+mod domain;
 mod error;
 mod middleware;
+mod observability;
 mod providers;
 mod routes;
+mod routing;
 mod state;
 
 use crate::{app::build_app, config::Config, state::AppState};
