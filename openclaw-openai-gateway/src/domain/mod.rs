@@ -1,5 +1,7 @@
 pub mod account;
+pub mod model_catalog;
 pub mod models;
 pub mod openai;
 pub mod provider;
+pub mod provider_pool;
 pub mod routing;

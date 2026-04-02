@@ -1,5 +1,6 @@
 use crate::{
     error::AppError,
+    governance::audit::routing_event,
     observability::explain::explain,
     providers::ProviderAdapter,
     routing::policy::{decide_provider, default_policy},
@@ -7,7 +8,6 @@ use crate::{
 };
 use axum::{extract::State, response::IntoResponse, Json};
 use serde::Deserialize;
-use serde_json::Value;
 use std::sync::Arc;
 
 #[derive(Deserialize)]
@@ -23,6 +23,7 @@ pub async fn create_response(
 ) -> Result<impl IntoResponse, AppError> {
     let decision = decide_provider(&payload.model, &default_policy());
     let explain_text = explain(&decision);
+    let audit = routing_event(&decision);
 
     let result = state
         .gateway_provider
@@ -30,5 +31,8 @@ pub async fn create_response(
         .await
         .map_err(|_| AppError::UpstreamUnavailable)?;
 
-    Ok(([ ("x-routing-explain", explain_text) ], Json(result)))
+    Ok(([
+        ("x-routing-explain", explain_text),
+        ("x-audit-action", audit.action),
+    ], Json(result)))
 }

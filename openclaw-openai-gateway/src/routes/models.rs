@@ -5,30 +5,32 @@ use serde::Serialize;
 use std::sync::Arc;
 
 #[derive(Serialize)]
-struct ModelList {
-    object: String,
-    data: Vec<ModelItem>,
+pub struct ModelList {
+    pub object: String,
+    pub data: Vec<ModelItem>,
 }
 
 #[derive(Serialize)]
-struct ModelItem {
-    id: String,
-    object: String,
-    created: i64,
-    owned_by: String,
+pub struct ModelItem {
+    pub id: String,
+    pub object: String,
+    pub created: i64,
+    pub owned_by: String,
 }
 
 pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<ModelList> {
     let now = Utc::now().timestamp();
     let data = state
-        .config
-        .models
+        .model_catalog
         .iter()
-        .map(|id| ModelItem {
-            id: id.clone(),
+        .map(|entry| ModelItem {
+            id: entry.alias.clone().unwrap_or_else(|| entry.canonical_name.clone()),
             object: "model".into(),
             created: now,
-            owned_by: "openclaw".into(),
+            owned_by: entry
+                .provider_hint
+                .clone()
+                .unwrap_or_else(|| "openclaw".into()),
         })
         .collect();
 

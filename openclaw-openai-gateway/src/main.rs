@@ -3,6 +3,7 @@ mod bridge;
 mod config;
 mod domain;
 mod error;
+mod governance;
 mod middleware;
 mod observability;
 mod providers;
