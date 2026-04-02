@@ -1,4 +1,8 @@
-use serde_json::{json, Value};
+use crate::bridge::{
+    mapper::{map_chat_request, map_chat_response, map_response_output, map_response_request},
+    types::{BridgeRequest, BridgeResponse},
+};
+use serde_json::Value;
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::connect_async;
 
@@ -26,20 +30,23 @@ impl OpenClawWsClient {
             return Err("upstream unavailable".into());
         }
 
-        Ok(json!({
-            "id": format!("chatcmpl-proxy-{}", chrono::Utc::now().timestamp_millis()),
-            "object": "chat.completion",
-            "created": chrono::Utc::now().timestamp(),
-            "model": model,
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": format!("proxy placeholder: {}", user_text)
-                },
-                "finish_reason": "stop"
-            }]
-        }))
+        let bridge_request = BridgeRequest {
+            upstream_payload: map_chat_request(model, user_text),
+        };
+        let assistant_text = bridge_request
+            .upstream_payload
+            .get("input")
+            .and_then(|v| v.get("messages"))
+            .and_then(|v| v.get(0))
+            .and_then(|v| v.get("content"))
+            .and_then(|v| v.as_str())
+            .map(|text| format!("proxy mapped: {}", text))
+            .unwrap_or_else(|| "proxy mapped: empty".into());
+        let bridge_response = BridgeResponse {
+            upstream_payload: map_chat_response(model, &assistant_text),
+        };
+
+        Ok(bridge_response.upstream_payload)
     }
 
     pub async fn proxy_response(
@@ -51,19 +58,19 @@ impl OpenClawWsClient {
             return Err("upstream unavailable".into());
         }
 
-        Ok(json!({
-            "id": format!("resp-proxy-{}", chrono::Utc::now().timestamp_millis()),
-            "object": "response",
-            "created_at": chrono::Utc::now().timestamp(),
-            "model": model,
-            "output": [{
-                "type": "message",
-                "role": "assistant",
-                "content": [{
-                    "type": "output_text",
-                    "text": format!("proxy placeholder: {}", input)
-                }]
-            }]
-        }))
+        let bridge_request = BridgeRequest {
+            upstream_payload: map_response_request(model, input),
+        };
+        let output_text = bridge_request
+            .upstream_payload
+            .get("input")
+            .and_then(|v| v.as_str())
+            .map(|text| format!("proxy mapped: {}", text))
+            .unwrap_or_else(|| "proxy mapped: empty".into());
+        let bridge_response = BridgeResponse {
+            upstream_payload: map_response_output(model, &output_text),
+        };
+
+        Ok(bridge_response.upstream_payload)
     }
 }

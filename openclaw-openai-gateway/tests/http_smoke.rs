@@ -77,3 +77,27 @@ async fn chat_returns_upstream_unavailable_when_gateway_unreachable() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
+
+#[tokio::test]
+async fn responses_returns_upstream_unavailable_when_gateway_unreachable() {
+    let app = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/responses")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "model": "openclaw-default",
+                        "input": "ping"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
