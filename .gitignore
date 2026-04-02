@@ -1,0 +1,12 @@
+# Rust
+/target
+Cargo.lock
+
+# Env
+.env
+.env.local
+
+# Editor
+.DS_Store
+.vscode/
+.idea/

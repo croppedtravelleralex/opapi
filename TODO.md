@@ -12,16 +12,19 @@
 - [x] 建立 `PROGRESS.md`
 - [x] 建立 `TODO.md`
 - [x] 设计并落下 Rust 最小代码骨架
-- [ ] 初始化 Git 仓库
+- [x] 补 `.gitignore`
+- [x] 补 `CONFIG.md` 与 `DATA_MODEL.md`
+- [x] 补 `README` 启动说明与 curl 示例
+- [x] 补 `/v1/chat/completions` 占位接口
+- [ ] 清理 Git 仓库中误提交的 `target/`
 - [ ] 跑通 `cargo run` 最小启动验证
-- [ ] 明确 V1 API 最小闭环
-- [ ] 补最小运行说明
+- [ ] 明确 V1 真实转发闭环
 
 ## P1
 
-- [ ] 设计账号池数据模型
-- [ ] 设计 health / models 之外的最小转发接口
-- [ ] 设计配置文件与环境变量入口
+- [ ] 设计鉴权入口
+- [ ] 设计上游配置与路由方式
+- [ ] 设计 health / models 之外的真实转发接口
 - [ ] 设计最小部署验证流程
 
 ## P2

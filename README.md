@@ -4,14 +4,52 @@
 
 这是一个围绕 **Sub2API / ChatGPT Business 账号池反代服务自动化** 的项目目录，目标是把现有方案文档逐步落地为一个真实可运行的 API 项目。
 
-当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架** 阶段。
+当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架阶段**。
 
 ## 当前已有内容
 
 - Sub2API 自动化架构设计
 - Ubuntu + Docker 部署手册
 - 项目入口/计划/状态/待办/进展文档骨架
-- Rust 最小 API 骨架（`/healthz`、`/readyz`、`/v1/models`）
+- Rust 最小 API 骨架（`/healthz`、`/readyz`、`/v1/models`、`/v1/chat/completions`）
+- 配置设计文档 `CONFIG.md`
+- 数据模型文档 `DATA_MODEL.md`
+
+## 快速启动
+
+```bash
+cp .env.example .env
+cargo run
+```
+
+默认监听：`http://127.0.0.1:8088`
+
+## 快速验证
+
+### 健康检查
+
+```bash
+curl http://127.0.0.1:8088/healthz
+```
+
+### 模型列表
+
+```bash
+curl http://127.0.0.1:8088/v1/models
+```
+
+### 聊天补位接口
+
+```bash
+curl -X POST http://127.0.0.1:8088/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "gpt-5.4",
+    "messages": [
+      {"role": "user", "content": "hello"}
+    ]
+  }'
+```
 
 ## 当前目标
 
