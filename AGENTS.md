@@ -314,6 +314,18 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
 - 若当前环境/指令允许且无更高优先级限制，则执行提交与推送
 - 若用户另有要求，则以用户要求优先
 
+### 项目汇报默认样式（全局规则）
+
+- 项目汇报默认采用**仪表盘版展示 + 分段流式发送**。
+- 默认使用区块化面板样式展示：**已实现能力 / 当前实现中 / 总盘子 / 阶段位置 / 评分 / 推荐方案 / 结论**。
+- 减少整句加粗；优先使用**轻标题、状态标签、进度条样式、留白**提升可读性。
+- 默认拆成 **3～4 段**发送，标准顺序为：
+  1. **状态**
+  2. **总盘子 / 评分**
+  3. **推荐方案**
+  4. **结论**
+- 若用户明确要求更短，再压缩；否则默认保留这种分段流式感。
+
 ## Make It Yours
 
 This is a starting point. Add your own conventions, style, and rules as you figure out what works.
