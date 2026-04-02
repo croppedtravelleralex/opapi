@@ -4,7 +4,7 @@
 
 这是一个围绕 **Sub2API / ChatGPT Business 账号池反代服务自动化** 的项目目录，目标是把现有方案文档逐步落地为一个真实可运行的 API 项目。
 
-当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架 + 单上游透传阶段**。
+当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架 + 静态多上游路由阶段**。
 
 ## 当前已有内容
 
@@ -12,28 +12,43 @@
 - Ubuntu + Docker 部署手册
 - 项目入口/计划/状态/待办/进展文档骨架
 - Rust 最小 API 骨架（`/healthz`、`/readyz`、`/v1/models`、`/v1/chat/completions`）
-- `POST /v1/chat/completions` 已支持 **单上游 OpenAI 兼容接口透传**
-- 最小网关鉴权设计（`GATEWAY_API_KEYS`）
+- `POST /v1/chat/completions` 已支持 **单上游透传** 与 **静态多上游模型映射预留**
+- 最小网关鉴权设计（`GATEWAY_API_KEYS` / `GATEWAY_API_KEYS_FILE`）
 - 配置设计文档 `CONFIG.md`
 - 数据模型文档 `DATA_MODEL.md`
 - 路由演进文档 `ROUTING_PLAN.md`
+- Docker / Compose / smoke / mock upstream 工具链
 
 ## 快速启动
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 UPSTREAM_BASE_URL / UPSTREAM_API_KEY / GATEWAY_API_KEYS
+# 编辑 .env，填入网关配置
 cargo run
 ```
 
 默认监听：`http://127.0.0.1:8088`
 
-## 必填上游配置
+## 鉴权配置
+
+```env
+GATEWAY_API_KEYS=sk-local-demo
+# 或者
+GATEWAY_API_KEYS_FILE=keys.example.txt
+```
+
+## 单上游配置
 
 ```env
 UPSTREAM_BASE_URL=https://your-upstream.example.com
 UPSTREAM_API_KEY=sk-xxxx
-GATEWAY_API_KEYS=sk-local-demo
+```
+
+## 静态多上游配置
+
+```env
+UPSTREAMS=oa|https://api.openai.com|sk-oa;iflow|https://example-iflow.test|sk-iflow
+MODEL_UPSTREAM_MAP=gpt-5.4=oa,qwen3-max=iflow
 ```
 
 ## 快速验证
@@ -63,6 +78,21 @@ curl -X POST http://127.0.0.1:8088/v1/chat/completions \
       {"role": "user", "content": "hello"}
     ]
   }'
+```
+
+### 本地 mock 双上游联调
+
+```bash
+python3 scripts/mock_upstream.py 19091 mock-a &
+python3 scripts/mock_upstream.py 19092 mock-b &
+
+PORT=8088 \
+GATEWAY_API_KEYS=sk-local-demo \
+UPSTREAMS='a|http://127.0.0.1:19091|dummy;b|http://127.0.0.1:19092|dummy' \
+MODEL_UPSTREAM_MAP='gpt-5.4=a,qwen3-max=b' \
+cargo run
+
+./scripts/smoke.sh http://127.0.0.1:8088 sk-local-demo gpt-5.4 qwen3-max
 ```
 
 ## 当前目标

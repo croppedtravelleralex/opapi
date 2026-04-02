@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::collections::HashMap;
+use std::{collections::HashMap, fs, path::Path};
 
 #[derive(Clone, Debug)]
 pub struct UpstreamConfig {
@@ -16,6 +16,7 @@ pub struct Config {
     pub upstream_base_url: Option<String>,
     pub upstream_api_key: Option<String>,
     pub gateway_api_keys: Vec<String>,
+    pub gateway_api_keys_file: Option<String>,
     pub upstreams: HashMap<String, UpstreamConfig>,
     pub model_upstream_map: HashMap<String, String>,
 }
@@ -42,12 +43,23 @@ impl Config {
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty());
-        let gateway_api_keys = std::env::var("GATEWAY_API_KEYS")
+        let gateway_api_keys_file = std::env::var("GATEWAY_API_KEYS_FILE")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty());
+
+        let mut gateway_api_keys: Vec<String> = std::env::var("GATEWAY_API_KEYS")
             .unwrap_or_default()
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
+
+        if let Some(file) = &gateway_api_keys_file {
+            gateway_api_keys.extend(load_api_keys_from_file(file)?);
+            gateway_api_keys.sort();
+            gateway_api_keys.dedup();
+        }
 
         let upstreams = parse_upstreams(std::env::var("UPSTREAMS").unwrap_or_default());
         let model_upstream_map = parse_model_upstream_map(std::env::var("MODEL_UPSTREAM_MAP").unwrap_or_default());
@@ -60,6 +72,7 @@ impl Config {
             upstream_base_url,
             upstream_api_key,
             gateway_api_keys,
+            gateway_api_keys_file,
             upstreams,
             model_upstream_map,
         })
@@ -82,6 +95,17 @@ impl Config {
             _ => None,
         }
     }
+}
+
+fn load_api_keys_from_file(path: &str) -> Result<Vec<String>> {
+    let path = Path::new(path);
+    let content = fs::read_to_string(path)?;
+    Ok(content
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| line.to_string())
+        .collect())
 }
 
 fn parse_upstreams(raw: String) -> HashMap<String, UpstreamConfig> {
