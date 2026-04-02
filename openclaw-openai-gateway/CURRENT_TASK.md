@@ -8,8 +8,8 @@
 3. 把 `CURRENT_DIRECTION.md` 改成“数据库驱动的最小控制平面 skeleton”
 4. 下一轮继续推进：
    - 补 `Account / AccountPool` 最小骨架
-   - 补 governance / audit 更完整测试
    - 补 audit 查询接口
+   - 让导入的第三方 provider 真正参与 chat/response 分发
 
 本轮不追求：
 - 一口气做完整多 Provider 行为

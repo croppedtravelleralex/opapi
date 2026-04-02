@@ -5,5 +5,7 @@ pub fn default_provider_pool() -> Vec<ProviderDescriptor> {
         id: "gateway.openclaw".into(),
         class: ProviderClass::Gateway,
         enabled: true,
+        base_url: None,
+        api_key_hint: None,
     }]
 }

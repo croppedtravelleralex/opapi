@@ -10,3 +10,4 @@ pub mod provider_capability;
 pub mod provider_pool;
 pub mod release_record;
 pub mod routing;
+pub mod third_party_provider;

@@ -1,7 +1,7 @@
-use axum::body::Body;
+use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use openclaw_openai_gateway::{app::build_app, config::Config, state::AppState};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{sync::Arc, time::{SystemTime, UNIX_EPOCH}};
 use tower::ServiceExt;
 
@@ -19,6 +19,10 @@ async fn test_app() -> (axum::Router, String) {
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
+        third_party_provider_id: None,
+        third_party_base_url: None,
+        third_party_api_key: None,
+        third_party_model: None,
     };
     let state = Arc::new(AppState::new(config).await.unwrap());
     (build_app(state), db_path)
@@ -77,6 +81,49 @@ async fn providers_returns_list() {
 }
 
 #[tokio::test]
+async fn providers_can_include_imported_third_party_api_key_and_base_url() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let db_path = format!("/tmp/openclaw-gateway-import-test-{}.sqlite3", unique);
+    let config = Config {
+        app_host: "127.0.0.1".into(),
+        app_port: 18080,
+        openclaw_ws_url: "ws://127.0.0.1:39999".into(),
+        openclaw_api_timeout_ms: 50,
+        api_keys: vec!["sk-test".into()],
+        models: vec!["openclaw-default".into()],
+        sqlite_path: db_path,
+        third_party_provider_id: Some("api.openai-compatible-demo".into()),
+        third_party_base_url: Some("https://example.com/v1".into()),
+        third_party_api_key: Some("sk-demo-provider-key".into()),
+        third_party_model: Some("gpt-4o-mini".into()),
+    };
+    let app = build_app(Arc::new(AppState::new(config).await.unwrap()));
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/providers")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    let data = payload["data"].as_array().unwrap();
+    assert!(data.iter().any(|item| {
+        item["id"] == "api.openai-compatible-demo"
+            && item["class"] == "Api"
+            && item["base_url"] == "https://example.com/v1"
+            && item["api_key_hint"] == "sk-dem***"
+    }));
+}
+
+#[tokio::test]
 async fn routing_explain_uses_capability_and_availability() {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -91,6 +138,10 @@ async fn routing_explain_uses_capability_and_availability() {
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
+        third_party_provider_id: None,
+        third_party_base_url: None,
+        third_party_api_key: None,
+        third_party_model: None,
     };
     let state = AppState::new(config).await.unwrap();
     let decision = openclaw_openai_gateway::routing::policy::decide_provider(

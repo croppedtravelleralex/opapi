@@ -28,6 +28,7 @@
 - [x] 让 routing 决策使用 SQLite provider 数据
 - [x] 让 capability / availability 开始参与 routing 决策
 - [x] 把 audit 持久化到 SQLite
+- [x] 支持第三方 API Key + BaseURL 导入
 
 ## P1
 - [ ] 补 auth / health / models / chat / responses 更完整测试

@@ -13,6 +13,8 @@ pub struct ProviderItem {
     pub id: String,
     pub class: String,
     pub enabled: bool,
+    pub base_url: Option<String>,
+    pub api_key_hint: Option<String>,
 }
 
 pub async fn list_providers(State(state): State<Arc<AppState>>) -> Json<ProviderList> {
@@ -24,6 +26,8 @@ pub async fn list_providers(State(state): State<Arc<AppState>>) -> Json<Provider
             id: p.id,
             class: format!("{:?}", p.class),
             enabled: p.enabled,
+            base_url: p.base_url,
+            api_key_hint: p.api_key_hint,
         })
         .collect();
 

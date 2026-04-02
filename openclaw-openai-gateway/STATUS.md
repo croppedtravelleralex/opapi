@@ -29,6 +29,7 @@
 - `provider_capabilities / model_availability` 已可建表并 seed
 - audit 已落 SQLite（`audit_events`）
 - capability / availability 已开始参与 routing 决策
+- 已支持第三方 API Key + BaseURL 导入到 provider 列表
 - smoke tests 已建立并通过
 
 ## 当前主线

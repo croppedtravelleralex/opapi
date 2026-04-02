@@ -9,6 +9,10 @@ pub struct Config {
     pub api_keys: Vec<String>,
     pub models: Vec<String>,
     pub sqlite_path: String,
+    pub third_party_provider_id: Option<String>,
+    pub third_party_base_url: Option<String>,
+    pub third_party_api_key: Option<String>,
+    pub third_party_model: Option<String>,
 }
 
 impl Config {
@@ -51,6 +55,10 @@ impl Config {
             api_keys,
             models,
             sqlite_path,
+            third_party_provider_id: env::var("THIRD_PARTY_PROVIDER_ID").ok(),
+            third_party_base_url: env::var("THIRD_PARTY_BASE_URL").ok(),
+            third_party_api_key: env::var("THIRD_PARTY_API_KEY").ok(),
+            third_party_model: env::var("THIRD_PARTY_MODEL").ok(),
         })
     }
 }

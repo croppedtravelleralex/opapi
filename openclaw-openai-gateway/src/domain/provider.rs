@@ -13,4 +13,6 @@ pub struct ProviderDescriptor {
     pub id: String,
     pub class: ProviderClass,
     pub enabled: bool,
+    pub base_url: Option<String>,
+    pub api_key_hint: Option<String>,
 }

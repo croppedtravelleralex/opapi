@@ -46,6 +46,8 @@ impl SqliteModelRepository {
                 name TEXT NOT NULL,
                 protocol TEXT NOT NULL,
                 enabled INTEGER NOT NULL DEFAULT 1,
+                base_url TEXT,
+                api_key_hint TEXT,
                 supports_stream INTEGER NOT NULL DEFAULT 0,
                 supports_responses_shape INTEGER NOT NULL DEFAULT 0,
                 health_score REAL NOT NULL DEFAULT 1.0,
@@ -185,28 +187,38 @@ impl SqliteProviderRepository {
         model_repo.init_schema()?;
         let conn = Connection::open(&self.dsn).map_err(|e| e.to_string())?;
         for entry in entries {
+            let protocol = if entry.base_url.is_some() { "https" } else { "ws" };
             conn.execute(
                 "INSERT OR REPLACE INTO providers (
-                    id, class, vendor, name, protocol, enabled,
+                    id, class, vendor, name, protocol, enabled, base_url, api_key_hint,
                     supports_stream, supports_responses_shape, health_score,
                     risk_level, cost_score, latency_score, created_at, updated_at
-                ) VALUES (?1, ?2, 'openclaw', ?3, 'ws', ?4, 0, 1, 1.0, 'normal', 0.0, 0.0, datetime('now'), datetime('now'))",
+                ) VALUES (?1, ?2, 'openclaw', ?3, ?4, ?5, ?6, ?7, 0, 1, 1.0, 'normal', 0.0, 0.0, datetime('now'), datetime('now'))",
                 params![
                     entry.id,
                     format!("{:?}", entry.class),
                     entry.id,
-                    if entry.enabled { 1 } else { 0 }
+                    protocol,
+                    if entry.enabled { 1 } else { 0 },
+                    entry.base_url,
+                    entry.api_key_hint
                 ],
             ).map_err(|e| e.to_string())?;
+
+            let model_name = if entry.id == "api.openai-compatible-demo" {
+                "gpt-4o-mini"
+            } else {
+                "openclaw-default"
+            };
 
             conn.execute(
                 "INSERT OR REPLACE INTO provider_capabilities (
                     id, provider_id, model_name, supports_stream, supports_responses_api
                 ) VALUES (?1, ?2, ?3, 0, 1)",
                 params![
-                    format!("{}::openclaw-default", entry.id),
+                    format!("{}::{}", entry.id, model_name),
                     entry.id,
-                    "openclaw-default"
+                    model_name
                 ],
             ).map_err(|e| e.to_string())?;
 
@@ -215,8 +227,8 @@ impl SqliteProviderRepository {
                     id, model_name, provider_id, status
                 ) VALUES (?1, ?2, ?3, 'available')",
                 params![
-                    format!("openclaw-default::{}", entry.id),
-                    "openclaw-default",
+                    format!("{}::{}", model_name, entry.id),
+                    model_name,
                     entry.id
                 ],
             ).map_err(|e| e.to_string())?;
@@ -268,16 +280,25 @@ impl SqliteProviderRepository {
             Ok(c) => c,
             Err(_) => return self.fallback.providers.read().unwrap().clone(),
         };
-        let mut stmt = match conn.prepare("SELECT id, enabled FROM providers ORDER BY id") {
+        let mut stmt = match conn.prepare("SELECT id, class, enabled, base_url, api_key_hint FROM providers ORDER BY id") {
             Ok(s) => s,
             Err(_) => return self.fallback.providers.read().unwrap().clone(),
         };
         let rows = stmt
             .query_map([], |row| {
+                let class_str: String = row.get(1)?;
+                let class = match class_str.as_str() {
+                    "Api" => crate::domain::provider::ProviderClass::Api,
+                    "Web" => crate::domain::provider::ProviderClass::Web,
+                    "Local" => crate::domain::provider::ProviderClass::Local,
+                    _ => crate::domain::provider::ProviderClass::Gateway,
+                };
                 Ok(ProviderDescriptor {
                     id: row.get(0)?,
-                    class: crate::domain::provider::ProviderClass::Gateway,
-                    enabled: row.get::<_, i64>(1)? != 0,
+                    class,
+                    enabled: row.get::<_, i64>(2)? != 0,
+                    base_url: row.get(3).ok(),
+                    api_key_hint: row.get(4).ok(),
                 })
             })
             .ok();
