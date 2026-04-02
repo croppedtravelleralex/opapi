@@ -324,6 +324,7 @@ The goal: Be helpful without being annoying. Check in a few times a day, do usef
   1. **状态**
   2. **总盘子 / 评分**
   3. **推荐方案**
+- **硬性要求：当用户只发“1”时，默认表示“直接执行当前最推荐方案”；在结果或问题真正出现之前，不额外解释、不重复计划，直接开做。**
 - 若用户明确要求更短，再压缩；否则默认保留这种分段流式感。
 
 ## Make It Yours
