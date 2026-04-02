@@ -75,6 +75,79 @@ impl SqliteModelRepository {
                 at INTEGER NOT NULL,
                 action TEXT NOT NULL,
                 detail TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS parent_accounts (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                space_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                fingerprint_profile_id TEXT,
+                invite_enabled INTEGER NOT NULL DEFAULT 0,
+                risk_level TEXT NOT NULL DEFAULT 'normal',
+                last_login_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS child_accounts (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                parent_account_id TEXT,
+                status TEXT NOT NULL,
+                space_verified INTEGER NOT NULL DEFAULT 0,
+                pool_status TEXT NOT NULL DEFAULT 'new',
+                risk_level TEXT NOT NULL DEFAULT 'normal',
+                fingerprint_profile_id TEXT,
+                last_login_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS space_memberships (
+                id TEXT PRIMARY KEY,
+                parent_account_id TEXT NOT NULL,
+                child_account_id TEXT NOT NULL UNIQUE,
+                joined INTEGER NOT NULL DEFAULT 0,
+                verified INTEGER NOT NULL DEFAULT 0,
+                verified_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS invite_tasks (
+                id TEXT PRIMARY KEY,
+                parent_account_id TEXT NOT NULL,
+                child_account_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                sent_at TEXT,
+                accepted_at TEXT,
+                error_reason TEXT
+            );
+            CREATE TABLE IF NOT EXISTS quota_snapshots (
+                id TEXT PRIMARY KEY,
+                child_account_id TEXT NOT NULL,
+                observed_at TEXT NOT NULL,
+                quota_5h_percent REAL,
+                quota_7d_percent REAL,
+                request_count INTEGER,
+                token_count INTEGER,
+                message_count INTEGER,
+                source_page TEXT,
+                confidence REAL,
+                read_ok INTEGER NOT NULL DEFAULT 1,
+                error_reason TEXT
+            );
+            CREATE TABLE IF NOT EXISTS pool_members (
+                id TEXT PRIMARY KEY,
+                child_account_id TEXT NOT NULL UNIQUE,
+                pool_status TEXT NOT NULL,
+                admission_level TEXT NOT NULL,
+                weight INTEGER NOT NULL DEFAULT 1,
+                current_load INTEGER NOT NULL DEFAULT 0,
+                cooldown_until TEXT,
+                last_success_at TEXT,
+                last_failure_at TEXT
+            );
+            CREATE TABLE IF NOT EXISTS proxy_api_keys (
+                id TEXT PRIMARY KEY,
+                label TEXT NOT NULL,
+                hashed_key TEXT NOT NULL,
+                owner TEXT NOT NULL,
+                status TEXT NOT NULL,
+                rate_limit INTEGER,
+                quota_limit INTEGER,
+                allowed_models_json TEXT NOT NULL DEFAULT '[]'
             );"
         ).map_err(|e| e.to_string())?;
         Ok(())

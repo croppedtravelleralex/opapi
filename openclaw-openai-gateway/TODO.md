@@ -1,6 +1,9 @@
 # TODO（openclaw-openai-gateway）
 
 ## P0：核心主线（先反代出额度）
+- [x] 打通主线设计文档并写入项目
+- [x] 建立母号 / 子号 / 空间成员 / 邀请任务 / 额度快照 / 池成员 / 外部 API Key 数据模型
+- [x] 将 `parent_accounts / child_accounts / space_memberships / invite_tasks / quota_snapshots / pool_members / proxy_api_keys` 加入 SQLite schema
 - [ ] 打通 **Codex App 额度反代链路**
 - [ ] 打通 **Web 会话 / Web 额度反代链路**
 - [ ] 建立统一 **额度来源抽象**（App / Web）

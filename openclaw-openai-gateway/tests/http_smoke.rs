@@ -174,11 +174,39 @@ async fn sqlite_file_is_seeded() {
     let audit_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
         .unwrap();
+    let parent_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM parent_accounts", [], |row| row.get(0))
+        .unwrap();
+    let child_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM child_accounts", [], |row| row.get(0))
+        .unwrap();
+    let membership_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM space_memberships", [], |row| row.get(0))
+        .unwrap();
+    let invite_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM invite_tasks", [], |row| row.get(0))
+        .unwrap();
+    let quota_snapshot_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM quota_snapshots", [], |row| row.get(0))
+        .unwrap();
+    let pool_member_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM pool_members", [], |row| row.get(0))
+        .unwrap();
+    let proxy_key_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM proxy_api_keys", [], |row| row.get(0))
+        .unwrap();
     assert!(model_count >= 1);
     assert!(provider_count >= 1);
     assert!(capability_count >= 1);
     assert!(availability_count >= 1);
     assert!(audit_count >= 0);
+    assert!(parent_count >= 0);
+    assert!(child_count >= 0);
+    assert!(membership_count >= 0);
+    assert!(invite_count >= 0);
+    assert!(quota_snapshot_count >= 0);
+    assert!(pool_member_count >= 0);
+    assert!(proxy_key_count >= 0);
 }
 
 #[tokio::test]

@@ -29,6 +29,8 @@
 - `/v1/models` / `/v1/providers` 已切到 SQLite-backed reads
 - `provider_capabilities / model_availability` 已可建表并 seed
 - audit 已落 SQLite（`audit_events`）
+- 母号 / 子号 / 空间成员 / 邀请任务 / 额度快照 / 池成员 / 外部 API Key 的领域对象已落下
+- `parent_accounts / child_accounts / space_memberships / invite_tasks / quota_snapshots / pool_members / proxy_api_keys` 已加入 SQLite schema
 - smoke tests 已建立并通过（`9 passed / 0 failed`）
 - 已完成新主线设计文档：
   - `VISION_QUOTA_PROXY.md`
