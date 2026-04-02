@@ -1,17 +1,17 @@
 # 当前任务（openclaw-openai-gateway）
 
-当前任务：**把项目进度口径纠正为“双进度制”，并把控制平面继续推进到 SQLite 主读源阶段。**
+当前任务：**把项目主线切到“额度反代”，优先打通真实额度来源，而不是继续扩第三方 provider。**
 
 本轮目标：
-1. 补 `FINAL_FEATURE_MAP.md`
-2. 把 `STATUS.md` 改成“双进度口径”
-3. 把 `CURRENT_DIRECTION.md` 改成“数据库驱动的最小控制平面 skeleton”
-4. 下一轮继续推进：
-   - 补 `Account / AccountPool` 最小骨架
-   - 补 audit 查询接口
-   - 让导入的第三方 provider 真正参与 chat/response 分发
+1. 把项目主线正式改成“Codex App / Web 额度反代”
+2. 把 TODO 重排成“额度来源 → 反代链路 → API Key 对外供给 → 账号池/容灾/平衡”
+3. 停止把“第三方 provider”作为当前推荐方向
+4. 下一轮按新主线推进：
+   - Codex App 额度反代链路
+   - Web 会话额度反代链路
+   - 对外 API Key 暴露与配额出口
 
 本轮不追求：
-- 一口气做完整多 Provider 行为
-- 一口气做完整 account pool / automation
-- 一口气做完整治理面
+- 第三方 provider 扩展
+- 先做账号池再补额度来源
+- 先做容灾/平衡再补真实可用额度
