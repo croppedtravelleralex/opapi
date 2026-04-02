@@ -16,14 +16,14 @@
 - [x] 补 `CONFIG.md` 与 `DATA_MODEL.md`
 - [x] 补 `README` 启动说明与 curl 示例
 - [x] 补 `/v1/chat/completions` 占位接口
-- [ ] 清理 Git 仓库中误提交的 `target/`
+- [x] 清理 Git 仓库中误提交的 `target/`
 - [ ] 跑通 `cargo run` 最小启动验证
-- [ ] 明确 V1 真实转发闭环
+- [x] 明确 V1 真实转发闭环
 
 ## P1
 
 - [ ] 设计鉴权入口
-- [ ] 设计上游配置与路由方式
+- [x] 设计上游配置与路由方式
 - [ ] 设计 health / models 之外的真实转发接口
 - [ ] 设计最小部署验证流程
 

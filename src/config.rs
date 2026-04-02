@@ -8,6 +8,7 @@ pub struct Config {
     pub default_models: Vec<String>,
     pub upstream_base_url: Option<String>,
     pub upstream_api_key: Option<String>,
+    pub gateway_api_keys: Vec<String>,
 }
 
 impl Config {
@@ -32,6 +33,12 @@ impl Config {
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty());
+        let gateway_api_keys = std::env::var("GATEWAY_API_KEYS")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
 
         Ok(Self {
             host,
@@ -40,6 +47,7 @@ impl Config {
             default_models,
             upstream_base_url,
             upstream_api_key,
+            gateway_api_keys,
         })
     }
 

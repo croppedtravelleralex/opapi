@@ -24,40 +24,31 @@ pub struct ChatMessage {
     pub content: String,
 }
 
+fn gateway_error(status: StatusCode, message: impl Into<String>, err_type: &str) -> Response {
+    (
+        status,
+        Json(json!({
+            "error": {
+                "message": message.into(),
+                "type": err_type
+            }
+        })),
+    )
+        .into_response()
+}
+
 pub async fn create_chat_completion(
     State(config): State<Config>,
     Json(payload): Json<ChatCompletionRequest>,
 ) -> Response {
     let upstream_base_url = match &config.upstream_base_url {
         Some(v) => v.clone(),
-        None => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": {
-                        "message": "missing UPSTREAM_BASE_URL",
-                        "type": "configuration_error"
-                    }
-                })),
-            )
-                .into_response()
-        }
+        None => return gateway_error(StatusCode::BAD_REQUEST, "missing UPSTREAM_BASE_URL", "configuration_error"),
     };
 
     let upstream_api_key = match &config.upstream_api_key {
         Some(v) => v.clone(),
-        None => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": {
-                        "message": "missing UPSTREAM_API_KEY",
-                        "type": "configuration_error"
-                    }
-                })),
-            )
-                .into_response()
-        }
+        None => return gateway_error(StatusCode::BAD_REQUEST, "missing UPSTREAM_API_KEY", "configuration_error"),
     };
 
     let client = reqwest::Client::new();
@@ -72,16 +63,11 @@ pub async fn create_chat_completion(
     {
         Ok(resp) => resp,
         Err(err) => {
-            return (
+            return gateway_error(
                 StatusCode::BAD_GATEWAY,
-                Json(json!({
-                    "error": {
-                        "message": format!("upstream request failed: {}", err),
-                        "type": "upstream_request_error"
-                    }
-                })),
+                format!("upstream request failed: {}", err),
+                "upstream_request_error",
             )
-                .into_response()
         }
     };
 
@@ -89,16 +75,11 @@ pub async fn create_chat_completion(
     let body = match response.json::<Value>().await {
         Ok(body) => body,
         Err(err) => {
-            return (
+            return gateway_error(
                 StatusCode::BAD_GATEWAY,
-                Json(json!({
-                    "error": {
-                        "message": format!("failed to decode upstream response: {}", err),
-                        "type": "upstream_decode_error"
-                    }
-                })),
+                format!("failed to decode upstream response: {}", err),
+                "upstream_decode_error",
             )
-                .into_response()
         }
     };
 

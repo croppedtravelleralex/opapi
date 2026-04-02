@@ -13,14 +13,16 @@
 - 项目入口/计划/状态/待办/进展文档骨架
 - Rust 最小 API 骨架（`/healthz`、`/readyz`、`/v1/models`、`/v1/chat/completions`）
 - `POST /v1/chat/completions` 已支持 **单上游 OpenAI 兼容接口透传**
+- 最小网关鉴权设计（`GATEWAY_API_KEYS`）
 - 配置设计文档 `CONFIG.md`
 - 数据模型文档 `DATA_MODEL.md`
+- 路由演进文档 `ROUTING_PLAN.md`
 
 ## 快速启动
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 UPSTREAM_BASE_URL 和 UPSTREAM_API_KEY
+# 编辑 .env，填入 UPSTREAM_BASE_URL / UPSTREAM_API_KEY / GATEWAY_API_KEYS
 cargo run
 ```
 
@@ -31,26 +33,29 @@ cargo run
 ```env
 UPSTREAM_BASE_URL=https://your-upstream.example.com
 UPSTREAM_API_KEY=sk-xxxx
+GATEWAY_API_KEYS=sk-local-demo
 ```
 
 ## 快速验证
 
-### 健康检查
+### 健康检查（免鉴权）
 
 ```bash
 curl http://127.0.0.1:8088/healthz
 ```
 
-### 模型列表
+### 模型列表（需要 Bearer）
 
 ```bash
-curl http://127.0.0.1:8088/v1/models
+curl http://127.0.0.1:8088/v1/models \
+  -H 'Authorization: Bearer sk-local-demo'
 ```
 
-### 聊天透传接口
+### 聊天透传接口（需要 Bearer）
 
 ```bash
 curl -X POST http://127.0.0.1:8088/v1/chat/completions \
+  -H 'Authorization: Bearer sk-local-demo' \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "gpt-5.4",
