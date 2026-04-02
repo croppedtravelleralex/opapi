@@ -4,7 +4,7 @@
 
 这是一个围绕 **Sub2API / ChatGPT Business 账号池反代服务自动化** 的项目目录，目标是把现有方案文档逐步落地为一个真实可运行的 API 项目。
 
-当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架阶段**。
+当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架 + 单上游透传阶段**。
 
 ## 当前已有内容
 
@@ -12,6 +12,7 @@
 - Ubuntu + Docker 部署手册
 - 项目入口/计划/状态/待办/进展文档骨架
 - Rust 最小 API 骨架（`/healthz`、`/readyz`、`/v1/models`、`/v1/chat/completions`）
+- `POST /v1/chat/completions` 已支持 **单上游 OpenAI 兼容接口透传**
 - 配置设计文档 `CONFIG.md`
 - 数据模型文档 `DATA_MODEL.md`
 
@@ -19,10 +20,18 @@
 
 ```bash
 cp .env.example .env
+# 编辑 .env，填入 UPSTREAM_BASE_URL 和 UPSTREAM_API_KEY
 cargo run
 ```
 
 默认监听：`http://127.0.0.1:8088`
+
+## 必填上游配置
+
+```env
+UPSTREAM_BASE_URL=https://your-upstream.example.com
+UPSTREAM_API_KEY=sk-xxxx
+```
 
 ## 快速验证
 
@@ -38,7 +47,7 @@ curl http://127.0.0.1:8088/healthz
 curl http://127.0.0.1:8088/v1/models
 ```
 
-### 聊天补位接口
+### 聊天透传接口
 
 ```bash
 curl -X POST http://127.0.0.1:8088/v1/chat/completions \
