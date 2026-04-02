@@ -10,4 +10,6 @@ pub struct RoutingDecision {
     pub model: String,
     pub selected_provider: String,
     pub reason: String,
+    pub availability_status: Option<String>,
+    pub supports_responses_api: Option<bool>,
 }

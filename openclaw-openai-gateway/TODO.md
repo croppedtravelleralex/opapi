@@ -26,6 +26,7 @@
 - [x] 把 `providers` 主读源切到 SQLite-backed reads
 - [x] 把 `provider_capabilities / model_availability` 真落表并 seed
 - [x] 让 routing 决策使用 SQLite provider 数据
+- [x] 让 capability / availability 开始参与 routing 决策
 - [x] 把 audit 持久化到 SQLite
 
 ## P1

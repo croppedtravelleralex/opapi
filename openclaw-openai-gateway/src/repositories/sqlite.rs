@@ -162,6 +162,13 @@ impl SqliteAuditRepository {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ProviderRoutingRow {
+    pub id: String,
+    pub availability_status: Option<String>,
+    pub supports_responses_api: Option<bool>,
+}
+
 #[derive(Clone)]
 pub struct SqliteProviderRepository {
     pub dsn: String,
@@ -215,6 +222,41 @@ impl SqliteProviderRepository {
             ).map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+
+    pub fn list_for_model(&self, model: &str) -> Vec<ProviderRoutingRow> {
+        let model_repo = SqliteModelRepository::new(self.dsn.clone(), self.fallback.clone());
+        if model_repo.init_schema().is_err() {
+            return vec![];
+        }
+        let conn = match Connection::open(&self.dsn) {
+            Ok(c) => c,
+            Err(_) => return vec![],
+        };
+        let mut stmt = match conn.prepare(
+            "SELECT p.id, ma.status, pc.supports_responses_api
+             FROM providers p
+             LEFT JOIN model_availability ma ON ma.provider_id = p.id AND ma.model_name = ?1
+             LEFT JOIN provider_capabilities pc ON pc.provider_id = p.id AND pc.model_name = ?1
+             WHERE p.enabled = 1
+             ORDER BY p.id"
+        ) {
+            Ok(s) => s,
+            Err(_) => return vec![],
+        };
+        let rows = stmt
+            .query_map([model], |row| {
+                Ok(ProviderRoutingRow {
+                    id: row.get(0)?,
+                    availability_status: row.get(1).ok(),
+                    supports_responses_api: row.get::<_, Option<i64>>(2)?.map(|v| v != 0),
+                })
+            })
+            .ok();
+        match rows {
+            Some(iter) => iter.filter_map(Result::ok).collect(),
+            None => vec![],
+        }
     }
 
     pub fn list(&self) -> Vec<ProviderDescriptor> {

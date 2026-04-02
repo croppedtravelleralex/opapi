@@ -77,6 +77,33 @@ async fn providers_returns_list() {
 }
 
 #[tokio::test]
+async fn routing_explain_uses_capability_and_availability() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let db_path = format!("/tmp/openclaw-gateway-routing-test-{}.sqlite3", unique);
+    let config = Config {
+        app_host: "127.0.0.1".into(),
+        app_port: 18080,
+        openclaw_ws_url: "ws://127.0.0.1:39999".into(),
+        openclaw_api_timeout_ms: 50,
+        api_keys: vec!["sk-test".into()],
+        models: vec!["openclaw-default".into()],
+        sqlite_path: db_path,
+    };
+    let state = AppState::new(config).await.unwrap();
+    let decision = openclaw_openai_gateway::routing::policy::decide_provider(
+        "openclaw-default",
+        &openclaw_openai_gateway::routing::policy::default_policy(),
+        Some(&state),
+    );
+    let explain = openclaw_openai_gateway::observability::explain::explain(&decision);
+    assert!(explain.contains("availability_status=available"));
+    assert!(explain.contains("supports_responses_api=true"));
+}
+
+#[tokio::test]
 async fn sqlite_file_is_seeded() {
     let (app, db_path) = test_app().await;
     let _ = app;
