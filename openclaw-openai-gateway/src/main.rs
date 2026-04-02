@@ -3,6 +3,7 @@ mod bridge;
 mod config;
 mod error;
 mod middleware;
+mod providers;
 mod routes;
 mod state;
 
