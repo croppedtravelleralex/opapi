@@ -4,6 +4,7 @@ use crate::domain::{
     provider::ProviderDescriptor,
     provider_capability::ProviderCapability,
 };
+use crate::governance::audit::AuditEvent;
 use crate::repositories::store::InMemoryStore;
 use rusqlite::{params, Connection};
 use serde_json::json;
@@ -66,6 +67,12 @@ impl SqliteModelRepository {
                 model_name TEXT NOT NULL,
                 provider_id TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'available'
+            );
+            CREATE TABLE IF NOT EXISTS audit_events (
+                id TEXT PRIMARY KEY,
+                at INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                detail TEXT NOT NULL
             );"
         ).map_err(|e| e.to_string())?;
         Ok(())
@@ -116,6 +123,42 @@ impl SqliteModelRepository {
             Some(iter) => iter.filter_map(Result::ok).collect(),
             None => self.fallback.models.read().unwrap().clone(),
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct SqliteAuditRepository {
+    pub dsn: String,
+}
+
+impl SqliteAuditRepository {
+    pub fn new(dsn: String) -> Self {
+        Self { dsn }
+    }
+
+    pub fn append(&self, event: &AuditEvent) -> Result<(), String> {
+        let model_repo = SqliteModelRepository::new(self.dsn.clone(), InMemoryStore::default());
+        model_repo.init_schema()?;
+        let conn = Connection::open(&self.dsn).map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO audit_events (id, at, action, detail) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                format!("audit-{}-{}", event.action, event.at),
+                event.at,
+                event.action,
+                event.detail
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn count(&self) -> Result<i64, String> {
+        let model_repo = SqliteModelRepository::new(self.dsn.clone(), InMemoryStore::default());
+        model_repo.init_schema()?;
+        let conn = Connection::open(&self.dsn).map_err(|e| e.to_string())?;
+        conn.query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
+            .map_err(|e| e.to_string())
     }
 }
 

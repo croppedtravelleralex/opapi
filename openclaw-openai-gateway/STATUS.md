@@ -27,6 +27,7 @@
 - `/v1/models` 已切到 SQLite-backed reads
 - `/v1/providers` 已切到 SQLite-backed reads
 - `provider_capabilities / model_availability` 已可建表并 seed
+- audit 已落 SQLite（`audit_events`）
 - smoke tests 已建立并通过
 
 ## 当前主线

@@ -12,7 +12,7 @@ use crate::{
         audit_repo::AuditRepository,
         model_repo::ModelRepository,
         provider_repo::ProviderRepository,
-        sqlite::{SqliteModelRepository, SqliteProviderRepository},
+        sqlite::{SqliteAuditRepository, SqliteModelRepository, SqliteProviderRepository},
         store::InMemoryStore,
     },
 };
@@ -30,6 +30,7 @@ pub struct AppState {
     pub audit_repo: AuditRepository,
     pub sqlite_model_repo: SqliteModelRepository,
     pub sqlite_provider_repo: SqliteProviderRepository,
+    pub sqlite_audit_repo: SqliteAuditRepository,
 }
 
 impl AppState {
@@ -44,7 +45,8 @@ impl AppState {
         let store = InMemoryStore::default();
         let model_repo = ModelRepository::new(store.clone());
         let provider_repo = ProviderRepository::new(store.clone());
-        let audit_repo = AuditRepository::new(store.clone());
+        let sqlite_audit_repo = SqliteAuditRepository::new(config.sqlite_path.clone());
+        let audit_repo = AuditRepository::with_sqlite(store.clone(), sqlite_audit_repo.clone());
         model_repo.replace_all(model_catalog.clone());
         provider_repo.replace_all(provider_pool.clone());
 
@@ -65,6 +67,7 @@ impl AppState {
             audit_repo,
             sqlite_model_repo,
             sqlite_provider_repo,
+            sqlite_audit_repo,
         })
     }
 }

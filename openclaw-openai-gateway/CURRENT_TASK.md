@@ -7,9 +7,9 @@
 2. 把 `STATUS.md` 改成“双进度口径”
 3. 把 `CURRENT_DIRECTION.md` 改成“数据库驱动的最小控制平面 skeleton”
 4. 下一轮继续推进：
-   - 把 audit 持久化到 SQLite
    - 让 `provider_capabilities / model_availability` 真正参与 routing
    - 继续扩 AccountPool / Governance / ChangePlan
+   - 补 governance / audit 更完整测试
 
 本轮不追求：
 - 一口气做完整多 Provider 行为
