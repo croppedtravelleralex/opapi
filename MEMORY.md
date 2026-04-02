@@ -1,5 +1,8 @@
 # MEMORY.md
 
+- 用户已指定 `opapi` 项目的 GitHub 仓库地址为 `git@github.com:croppedtravelleralex/opapi.git`（HTTPS 形式：`https://github.com/croppedtravelleralex/opapi`）；后续默认 push 到这里。
+- 用户补充了回复排版偏好：虽然整体仍偏好紧凑，但**需要保留适量空行提升可读性**，避免文本过于挤在一起看着费眼。
+- 用户新增项目汇报模板偏好：默认使用“**已实现 3 项大功能 → 正在实现的大功能（能力/进度）→ 正在实现的小功能（能力/进度）→ 距离实现阶段目标还缺的若干小功能及其作用 → 当前实现最终目标总进度 → 接下来 4 项大功能 → 4 组功能组合建议且第 1 组最推荐**”的固定结构。
 - 用户的 GitHub 仓库之一：`croppedtravelleralex/croppedtravelleralex-auto-open-browser`。
 - 本机对应项目目录：`/root/projects/lightpanda-automation`。
 - 用户正在推进 `lightpanda-automation` 项目，定位为偏个人学习与研发使用的高性能浏览器自动化系统。
@@ -11,3 +14,12 @@
 - 用户要求：回复中该加粗的地方要加粗，尤其是结论、优先项和关键提醒。
 - 用户要求：项目推进时，**每两轮**要主动回顾项目，默认加入 **找 bug、性能评分、改进建议** 这三个动作，不要等用户每次提醒。
 - 已解决一次 OpenClaw 无响应问题：根因是网关 `bind` 配置为 loopback，仅监听本地回环地址，导致外部网络无法访问；在 tailscale 为 `serve` 模式下无法直接改为 lan 绑定。通过重启 OpenClaw 服务应用当前配置后恢复正常；后续遇到同类问题应优先检查 gateway bind 与外部可达性。
+- 2026-03-30 再次排查 OpenClaw “`🧹 Compacting context...` 后失联”问题：日志证据显示主因更接近 Telegram long polling 链路周期性 `ETIMEDOUT` / `ENETUNREACH`，进而触发 `Polling stall detected`、runner 重启与连接中断，而非 compact 本身。切换 `eth0` DNS 到 `1.1.1.1` / `8.8.8.8` 后，严重故障级别有所下降（观察窗口内未再出现新的 stall/restart），但仍未完全根治；后续优先方向应为稳定 Telegram 出网链路、旁路升级 OpenClaw、避免直接在当前会话里停 gateway。
+- 当前 OpenClaw 已将 compaction 配置调得更保守：`keepRecentTokens=64000`、`recentTurnsPreserve=16`、`reserveTokens=20000`、`reserveTokensFloor=16000`、`memoryFlush.softThresholdTokens=40000`，并增强 compact 指令以保留诊断状态、已确认/已排除结论、挂起任务与回滚说明。
+- 本机已有可工作的本地 `CLIProxyAPI-local`，OpenClaw 可通过 `cliproxy/chatgpt-main` 调用；但 `CLIProxyAPI-local -login` 验证结果是 Google OAuth 而不是 ChatGPT/OpenAI Web OAuth，不能把该入口误认为 ChatGPT Web 登录。
+- 2026-03-30：`tokenx24/gpt-5.4` 直连实测失败，`https://tokenx24.com/v1/models` 与 `/v1/responses` 均返回 `403 / error code 1010`，更像上游/WAF/IP 风控拦截而非 OpenClaw 主会话故障；当前主会话实际可用链路是本地 `cliproxy/chatgpt-main`。
+- 2026-03-30：已将 OpenClaw 默认主模型从 `tokenx24/gpt-5.4` 切换为 `cliproxy/chatgpt-main`，并从 `~/.openclaw/openclaw.json` 中移除 `tokenx24` provider 与默认别名映射；对应备份文件为 `~/.openclaw/openclaw.json.bak-model-switch-1774878233`。
+- 2026-03-30：已确认运行中的 `CLIProxyAPI-local`（`~/.openclaw/cliproxy-local/config.yaml`）内部接入了 `kunkunout`，并暴露 `primary-main`、`reasoning-main`、`fallback-main`、`vision-main` 等 alias；OpenClaw 默认模型别名已补入 `cliproxy/primary-main`、`cliproxy/reasoning-main`、`cliproxy/fallback-main`、`cliproxy/vision-main` 作为备用链，另保留 `iflow/qwen3-max` 作为更外层备用。
+- 2026-03-30：当前较关键的旧模型残留主要在历史 session 元数据与一个 cron：`dashboard-account-pool-refresh`（jobId `994cfdf4-cf70-4a7d-bcf3-87c1b98be674`）历史运行记录中仍显示 `gpt-5.4`；这类残留更多是历史/绑定痕迹，不代表当前默认主模型仍在走 tokenx24。
+- 用户已确认一套“全项目默认推进清单”应作为长期默认规则：任何项目都默认按“先查现状→先给结论与 3~4 个下一步→先钉主线→能直接动手就直接动手→默认带 bug/性能/改进建议体检→文档与代码同步→改完默认跑验证→稳定后默认 commit”的流程执行；用户明确希望以后无需反复提醒，默认直接开做。
+- 2026-04-02：用户确认“项目汇报模板 v1”作为后续长期默认模板。模板要求：先列“已经实现了的功能”3项；再分开写“正在实现的大功能”和“正在实现的小功能”，各自说明主要能做什么与进度；再写“距离真正实现目标还需要的功能项”和其中关键功能的作用；然后给出“当前实现总进度”；最后列“接下来要实现的 4 项内容”和“4 组功能组合推荐”，其中第 1 组必须是当前最推荐组合并写明推荐原因。
