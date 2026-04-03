@@ -24,8 +24,9 @@ impl CodexQuotaCollector {
         session: CodexAppSessionInput,
     ) -> Result<QuotaSnapshot, String> {
         let snapshot = parse_quota_page(&input);
+        let resolved_session = merge_session_input(&input, &session);
         self.persist_snapshot(&snapshot)?;
-        self.persist_codex_app_session(&input, &session)?;
+        self.persist_codex_app_session(&input, &resolved_session)?;
         Ok(snapshot)
     }
 
@@ -84,5 +85,66 @@ impl CodexQuotaCollector {
         )
         .map_err(|e| e.to_string())?;
         Ok(())
+    }
+}
+
+fn merge_session_input(input: &CodexQuotaPageInput, session: &CodexAppSessionInput) -> CodexAppSessionInput {
+    let extracted = extract_session_input(input);
+    CodexAppSessionInput {
+        session_namespace: session
+            .session_namespace
+            .clone()
+            .or(extracted.session_namespace),
+        session_key_hint: session
+            .session_key_hint
+            .clone()
+            .or(extracted.session_key_hint),
+    }
+}
+
+fn extract_session_input(input: &CodexQuotaPageInput) -> CodexAppSessionInput {
+    CodexAppSessionInput {
+        session_namespace: extract_session_value(
+            &input.page_text,
+            input.page_html.as_deref(),
+            &["session namespace", "session_namespace", "session-namespace"],
+        ),
+        session_key_hint: extract_session_value(
+            &input.page_text,
+            input.page_html.as_deref(),
+            &["session key hint", "session_key_hint", "session-key-hint"],
+        ),
+    }
+}
+
+fn extract_session_value(text: &str, html: Option<&str>, anchors: &[&str]) -> Option<String> {
+    for anchor in anchors {
+        if let Some(value) = extract_value_after_anchor(text, anchor) {
+            return Some(value);
+        }
+        if let Some(raw_html) = html {
+            if let Some(value) = extract_value_after_anchor(raw_html, anchor) {
+                return Some(value);
+            }
+        }
+    }
+    None
+}
+
+fn extract_value_after_anchor(content: &str, anchor: &str) -> Option<String> {
+    let lower = content.to_lowercase();
+    let anchor_lower = anchor.to_lowercase();
+    let start = lower.find(&anchor_lower)?;
+    let tail = &content[start + anchor.len()..content.len().min(start + anchor.len() + 160)];
+    let cleaned = tail
+        .trim_start_matches(|ch: char| ch.is_whitespace() || matches!(ch, ':' | '=' | '"' | '\'' | '>'));
+    let value: String = cleaned
+        .chars()
+        .take_while(|ch| !ch.is_whitespace() && !matches!(ch, '<' | '"' | '\'' | ',' | ';'))
+        .collect();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
     }
 }
