@@ -1,19 +1,18 @@
 # 当前任务（openclaw-openai-gateway）
 
-当前任务：**把 Codex App / Web 额度反代主线正式推进到最小数据面路由。**
+当前任务：**把 CodexExecutor 从来源感知 mock 推进为“真实会话执行入口骨架”，为后续接 Codex App / Web 真会话预留桥接层。**
 
 本轮已完成：
-1. 已新增 `pool_router`，可从 `pool_members` 中挑选当前最优 active 来源
-2. 已让 `chat / responses` 在真正转发前先检查额度池里是否有可用来源
-3. 已新增 `no_healthy_pool_member` 错误分支，避免空池时继续盲转发
-4. 已把选中的池成员信息通过响应头回传，便于后续审计与排障
-5. 已开始把控制面能力接到最小数据面入口
+1. 已新增 `CodexSessionBridge`，作为真实 Codex App / Web 会话执行入口骨架
+2. 已给配置新增 `CODEX_SESSION_BRIDGE_MODE`，默认 `mock`，后续可切真实桥接模式
+3. 已把 `CodexExecutor` 改成通过 session bridge 执行，而不是直接在 executor 内拼纯 mock 文本
+4. 已保持 `source_id / source_page / child_account_id` 上下文继续贯穿到执行结果
 
 下一轮继续推进：
-1. 让请求真正按池成员绑定到具体额度来源执行
-2. 落 `Codex Web` 多信号采集器
-3. 补 pool 路由优先级 / 空池 / 冷却边界测试
-4. 给 pool member 增加更真实的 load / cooldown 更新逻辑
+1. 给 `CodexSessionBridge` 接真实 Codex App / Web 会话适配器
+2. 落 `Codex Web` 多信号采集器（文本 + DOM + 快照）
+3. 补来源上下文缺失 / 过期 / bridge 失败边界测试
+4. 开始收 pool member 冷却 / 恢复 / 负载更新逻辑
 
 本轮不追求：
 - GUI

@@ -19,6 +19,7 @@ async fn test_app() -> (axum::Router, String) {
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
+        codex_session_bridge_mode: "mock".into(),
         third_party_provider_id: None,
         third_party_base_url: None,
         third_party_api_key: None,
@@ -140,7 +141,7 @@ async fn chat_uses_best_active_pool_member_headers() {
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "green");
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green] source=codex-app page=/codex: ping");
+    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green] source=codex-app page=/codex: mock-session-bridge source=codex-app page=/codex input=ping");
 }
 
 #[tokio::test]
@@ -236,7 +237,7 @@ async fn responses_uses_best_active_pool_member_headers() {
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "yellow");
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow] source=codex-web page=/codex: ping");
+    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow] source=codex-web page=/codex: mock-session-bridge source=codex-web page=/codex input=ping");
 }
 
 #[tokio::test]
@@ -558,6 +559,7 @@ async fn providers_can_include_imported_third_party_api_key_and_base_url() {
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
+        codex_session_bridge_mode: "mock".into(),
         third_party_provider_id: Some("api.openai-compatible-demo".into()),
         third_party_base_url: Some("https://example.com/v1".into()),
         third_party_api_key: Some("sk-demo-provider-key".into()),
@@ -601,6 +603,7 @@ async fn routing_explain_uses_capability_and_availability() {
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
+        codex_session_bridge_mode: "mock".into(),
         third_party_provider_id: None,
         third_party_base_url: None,
         third_party_api_key: None,

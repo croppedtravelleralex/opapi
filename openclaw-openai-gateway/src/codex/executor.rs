@@ -1,14 +1,19 @@
-use crate::codex::{pool_router::RoutedPoolMember, source_context::SourceContextRepository};
+use crate::codex::{
+    pool_router::RoutedPoolMember,
+    session_bridge::CodexSessionBridge,
+    source_context::SourceContextRepository,
+};
 use serde_json::{json, Value};
 
 #[derive(Clone)]
 pub struct CodexExecutor {
     dsn: String,
+    session_bridge_mode: String,
 }
 
 impl CodexExecutor {
-    pub fn new(dsn: String) -> Self {
-        Self { dsn }
+    pub fn new(dsn: String, session_bridge_mode: String) -> Self {
+        Self { dsn, session_bridge_mode }
     }
 
     pub async fn execute_chat(
@@ -19,6 +24,10 @@ impl CodexExecutor {
     ) -> Result<Value, String> {
         let ctx = SourceContextRepository::new(self.dsn.clone())
             .latest_for_child(&member.child_account_id)?;
+        let bridge = CodexSessionBridge::new(self.session_bridge_mode.clone());
+        let bridged = bridge
+            .run_chat(&ctx.source_id, &ctx.source_page, model, user_text)
+            .await?;
         Ok(json!({
             "id": format!("chatcmpl-codex-{}", chrono::Utc::now().timestamp_millis()),
             "object": "chat.completion",
@@ -34,7 +43,7 @@ impl CodexExecutor {
                         member.admission_level,
                         ctx.source_id,
                         ctx.source_page,
-                        user_text
+                        bridged
                     )
                 },
                 "finish_reason": "stop"
@@ -50,6 +59,10 @@ impl CodexExecutor {
     ) -> Result<Value, String> {
         let ctx = SourceContextRepository::new(self.dsn.clone())
             .latest_for_child(&member.child_account_id)?;
+        let bridge = CodexSessionBridge::new(self.session_bridge_mode.clone());
+        let bridged = bridge
+            .run_response(&ctx.source_id, &ctx.source_page, model, input)
+            .await?;
         Ok(json!({
             "id": format!("resp-codex-{}", chrono::Utc::now().timestamp_millis()),
             "object": "response",
@@ -66,7 +79,7 @@ impl CodexExecutor {
                         member.admission_level,
                         ctx.source_id,
                         ctx.source_page,
-                        input
+                        bridged
                     )
                 }]
             }]
