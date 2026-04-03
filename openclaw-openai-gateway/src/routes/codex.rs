@@ -51,6 +51,8 @@ pub struct CollectCodexQuotaRequest {
     pub page_text: String,
     pub page_html: Option<String>,
     pub snapshot_ref: Option<String>,
+    pub session_namespace: Option<String>,
+    pub session_key_hint: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -82,14 +84,20 @@ pub async fn collect_codex_quota(
 ) -> Json<CollectCodexQuotaResponse> {
     let collector = CodexQuotaCollector::new(state.config.sqlite_path.clone());
     let snapshot = collector
-        .collect_from_page_text(crate::codex::parser::CodexQuotaPageInput {
-            child_account_id: payload.child_account_id,
-            source_id: payload.source_id,
-            source_page: payload.source_page,
-            page_text: payload.page_text,
-            page_html: payload.page_html,
-            snapshot_ref: payload.snapshot_ref,
-        })
+        .collect_from_page_text(
+            crate::codex::parser::CodexQuotaPageInput {
+                child_account_id: payload.child_account_id,
+                source_id: payload.source_id,
+                source_page: payload.source_page,
+                page_text: payload.page_text,
+                page_html: payload.page_html,
+                snapshot_ref: payload.snapshot_ref,
+            },
+            crate::codex::collector::CodexAppSessionInput {
+                session_namespace: payload.session_namespace,
+                session_key_hint: payload.session_key_hint,
+            },
+        )
         .unwrap_or_else(|error_reason| crate::domain::quota_snapshot::QuotaSnapshot {
             id: "quota-collect-failed".into(),
             child_account_id: "unknown".into(),

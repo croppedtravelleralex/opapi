@@ -255,7 +255,9 @@ async fn codex_quota_collect_returns_green_admission_for_healthy_quota() {
                         "child_account_id": "child-green-1",
                         "source_id": "codex-app",
                         "source_page": "/codex",
-                        "page_text": "5h 78% 7d 91% requests 12 tokens 3456 messages 8"
+                        "page_text": "5h 78% 7d 91% requests 12 tokens 3456 messages 8",
+                        "session_namespace": "sess-green-ns",
+                        "session_key_hint": "sess-green-key"
                     })
                     .to_string(),
                 ))
@@ -269,6 +271,45 @@ async fn codex_quota_collect_returns_green_admission_for_healthy_quota() {
     assert_eq!(payload["admission"]["pool_status"], "active");
     assert_eq!(payload["admission"]["admission_level"], "green");
     assert_eq!(payload["admission"]["weight"], 100);
+}
+
+#[tokio::test]
+async fn codex_quota_collect_persists_codex_app_session_metadata() {
+    let (app, db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-session-1",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "5h 78% 7d 91% requests 12 tokens 3456 messages 8",
+                        "session_namespace": "sqlite-session-ns",
+                        "session_key_hint": "sqlite-session-key"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let row: (String, String) = conn
+        .query_row(
+            "SELECT session_namespace, session_key_hint FROM codex_app_sessions WHERE child_account_id = 'child-session-1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(row.0, "sqlite-session-ns");
+    assert_eq!(row.1, "sqlite-session-key");
 }
 
 #[tokio::test]

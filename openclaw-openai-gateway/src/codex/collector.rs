@@ -2,6 +2,12 @@ use crate::codex::parser::{parse_quota_page, CodexQuotaPageInput};
 use crate::domain::quota_snapshot::QuotaSnapshot;
 use rusqlite::{params, Connection};
 
+#[derive(Debug, Clone)]
+pub struct CodexAppSessionInput {
+    pub session_namespace: Option<String>,
+    pub session_key_hint: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct CodexQuotaCollector {
     dsn: String,
@@ -12,9 +18,14 @@ impl CodexQuotaCollector {
         Self { dsn }
     }
 
-    pub fn collect_from_page_text(&self, input: CodexQuotaPageInput) -> Result<QuotaSnapshot, String> {
+    pub fn collect_from_page_text(
+        &self,
+        input: CodexQuotaPageInput,
+        session: CodexAppSessionInput,
+    ) -> Result<QuotaSnapshot, String> {
         let snapshot = parse_quota_page(&input);
         self.persist_snapshot(&snapshot)?;
+        self.persist_codex_app_session(&input, &session)?;
         Ok(snapshot)
     }
 
@@ -40,6 +51,35 @@ impl CodexQuotaCollector {
                 snapshot.confidence,
                 if snapshot.read_ok { 1_i64 } else { 0_i64 },
                 snapshot.error_reason,
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn persist_codex_app_session(
+        &self,
+        input: &CodexQuotaPageInput,
+        session: &CodexAppSessionInput,
+    ) -> Result<(), String> {
+        if input.source_id != "codex-app" {
+            return Ok(());
+        }
+        if session.session_namespace.is_none() && session.session_key_hint.is_none() {
+            return Ok(());
+        }
+
+        let conn = Connection::open(&self.dsn).map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO codex_app_sessions (
+                id, child_account_id, source_id, session_namespace, session_key_hint, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))",
+            params![
+                format!("codex-app-session:{}:{}", input.child_account_id, input.source_id),
+                input.child_account_id,
+                input.source_id,
+                session.session_namespace,
+                session.session_key_hint,
             ],
         )
         .map_err(|e| e.to_string())?;
