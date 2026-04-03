@@ -7,9 +7,9 @@
 - [~] 打通 **Codex App 额度反代链路**（已落最小采集器 + admission + 入池写回骨架，未接真实浏览器）
 - [ ] 打通 **Web 会话 / Web 额度反代链路**
 - [x] 建立统一 **额度来源抽象**（App / Web）
-- [ ] 建立统一 **反代执行入口**（chat / responses 真分发）
+- [~] 建立统一 **反代执行入口**（chat / responses 已开始读取 `pool_members`，尚未绑定具体来源执行）
 - [ ] 让系统能基于真实额度来源对外提供 API Key
-- [~] 建立最小 **额度池**（已落 admission 判定并写回 `pool_members`，未接数据面路由）
+- [~] 建立最小 **额度池**（已落 admission 判定并写回 `pool_members`，已开始参与最小路由）
 - [x] 提供最小 **额度观测查询接口**（`/v1/codex/quota-sources` / `/v1/codex/quota-overview`）
 - [x] 提供最小 **额度采集写入口**（`/v1/codex/quota/collect`）
 
@@ -23,6 +23,7 @@
 - [ ] 补 parser 页面变体兼容测试
 - [x] 补 admission 三档判定测试
 - [x] 补 pool_members 写回测试
+- [~] 补 pool 路由测试（已补最小头部与空池分支）
 
 ## P2：池化与治理增强
 - [ ] 建立 Account / AccountPool 最小骨架
@@ -53,6 +54,7 @@
 - [x] `Codex App` 最小额度采集器骨架
 - [x] `Codex` admission 判定骨架
 - [x] `pool_members` 最小写回链路
+- [x] `chat / responses` 最小池前置路由判断
 
 ## 暂缓 / 降级优先级
 - [ ] 第三方 API Key + BaseURL provider 扩展（暂不作为当前主线）

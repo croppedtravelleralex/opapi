@@ -12,6 +12,8 @@ pub enum AppError {
     InvalidApiKey,
     #[error("upstream unavailable")]
     UpstreamUnavailable,
+    #[error("no healthy pool member")]
+    NoHealthyPoolMember,
     #[error("internal server error")]
     Internal,
 }
@@ -49,6 +51,16 @@ impl IntoResponse for AppError {
                         message: "upstream unavailable".into(),
                         error_type: "service_unavailable_error".into(),
                         code: "upstream_unavailable".into(),
+                    },
+                },
+            ),
+            AppError::NoHealthyPoolMember => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                ErrorBody {
+                    error: ErrorDetail {
+                        message: "no healthy pool member".into(),
+                        error_type: "service_unavailable_error".into(),
+                        code: "no_healthy_pool_member".into(),
                     },
                 },
             ),

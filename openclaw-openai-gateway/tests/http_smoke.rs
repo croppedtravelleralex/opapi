@@ -73,6 +73,123 @@ async fn codex_quota_collect_persists_pool_member_after_admission() {
 }
 
 #[tokio::test]
+async fn chat_uses_best_active_pool_member_headers() {
+    let (app, db_path) = test_app().await;
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "INSERT INTO pool_members (
+            id, child_account_id, pool_status, admission_level, weight,
+            current_load, cooldown_until, last_success_at, last_failure_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            "pool-green-1",
+            "child-green-1",
+            "active",
+            "green",
+            100_i64,
+            0_i64,
+            Option::<String>::None,
+            Some("2026-04-03T09:00:00+08:00".to_string()),
+            Option::<String>::None,
+        ],
+    ).unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/chat/completions")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "model": "openclaw-default",
+                        "messages": [{"role": "user", "content": "ping"}]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers().get("x-pool-child-account-id").unwrap(), "child-green-1");
+    assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "green");
+}
+
+#[tokio::test]
+async fn chat_returns_no_healthy_pool_member_when_pool_empty() {
+    let (app, _db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/chat/completions")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "model": "openclaw-default",
+                        "messages": [{"role": "user", "content": "ping"}]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["error"]["code"], "no_healthy_pool_member");
+}
+
+#[tokio::test]
+async fn responses_uses_best_active_pool_member_headers() {
+    let (app, db_path) = test_app().await;
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "INSERT INTO pool_members (
+            id, child_account_id, pool_status, admission_level, weight,
+            current_load, cooldown_until, last_success_at, last_failure_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            "pool-yellow-1",
+            "child-yellow-1",
+            "active",
+            "yellow",
+            30_i64,
+            0_i64,
+            Option::<String>::None,
+            Some("2026-04-03T09:00:00+08:00".to_string()),
+            Option::<String>::None,
+        ],
+    ).unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/responses")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "model": "openclaw-default",
+                        "input": "ping"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.headers().get("x-pool-child-account-id").unwrap(), "child-yellow-1");
+    assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "yellow");
+}
+
+#[tokio::test]
 async fn codex_quota_collect_returns_green_admission_for_healthy_quota() {
     let (app, _db_path) = test_app().await;
     let response = app

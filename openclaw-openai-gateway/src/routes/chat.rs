@@ -1,4 +1,5 @@
 use crate::{
+    codex::pool_router::PoolRouter,
     error::AppError,
     governance::audit::routing_event,
     observability::explain::explain,
@@ -6,7 +7,11 @@ use crate::{
     routing::policy::{decide_provider, default_policy},
     state::AppState,
 };
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{
+    extract::State,
+    response::{IntoResponse, Response},
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -26,7 +31,7 @@ pub struct ChatMessage {
 pub async fn create_chat_completion(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ChatCompletionRequest>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<Response, AppError> {
     let user_text = payload
         .messages
         .last()
@@ -38,14 +43,28 @@ pub async fn create_chat_completion(
     let audit = routing_event(&decision);
     state.audit_repo.append(&audit);
 
-    let result = state
-        .gateway_provider
-        .chat(&payload.model, &user_text)
-        .await
-        .map_err(|_| AppError::UpstreamUnavailable)?;
+    let pool_router = PoolRouter::new(state.config.sqlite_path.clone());
+    let routed_member = pool_router
+        .pick_best_active_member()
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NoHealthyPoolMember)?;
+
+    let result = match state.gateway_provider.chat(&payload.model, &user_text).await {
+        Ok(result) => result,
+        Err(_) => {
+            return Ok(([
+                ("x-routing-explain", explain_text),
+                ("x-audit-action", audit.action),
+                ("x-pool-child-account-id", routed_member.child_account_id),
+                ("x-pool-admission-level", routed_member.admission_level),
+            ], AppError::UpstreamUnavailable).into_response())
+        }
+    };
 
     Ok(([
         ("x-routing-explain", explain_text),
         ("x-audit-action", audit.action),
-    ], Json(result)))
+        ("x-pool-child-account-id", routed_member.child_account_id),
+        ("x-pool-admission-level", routed_member.admission_level),
+    ], Json(result)).into_response())
 }
