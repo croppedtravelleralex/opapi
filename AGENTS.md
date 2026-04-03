@@ -131,6 +131,25 @@ Reactions are lightweight social signals. Humans use them constantly — they sa
 
 Skills provide your tools. When you need one, check its `SKILL.md`. Keep local notes (camera names, SSH details, voice preferences) in `TOOLS.md`.
 
+### Persistent Planning Defaults
+
+Use these as part of the default project workflow:
+
+- **`planning-with-files`**: For multi-step work, research, or anything likely to exceed ~5 tool calls, create and maintain project-root planning files:
+  - `task_plan.md`
+  - `findings.md`
+  - `progress.md`
+- **`taskr`**: For substantial work that spans sessions, needs user review/approval, or benefits from persistent task ownership/audit trail, offer to plan it in Taskr before execution.
+- **Combined default**:
+  - file-based planning is the local control surface
+  - Taskr is the cross-session / cross-agent execution surface
+  - when both are used, keep them consistent instead of letting one drift
+
+Practical rule of thumb:
+- Quick tasks (<3 steps, <2 minutes): skip both unless useful
+- Mid-size project work: use `planning-with-files`
+- Long-running / multi-session / multi-agent work: use `taskr`, and also keep file-based planning if the repo needs visible local control docs
+
 **🎭 Voice Storytelling:** If you have `sag` (ElevenLabs TTS), use voice for stories, movie summaries, and "storytime" moments! Way more engaging than walls of text. Surprise people with funny voices.
 
 **📝 Platform Formatting:**
