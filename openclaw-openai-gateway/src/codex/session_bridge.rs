@@ -3,7 +3,7 @@ use crate::{
     codex::codex_app_adapter::{CodexAppAdapter, CodexAppRequestContext},
 };
 use serde_json::Value;
-use std::sync::Arc;
+use std::{env, sync::Arc};
 
 #[derive(Clone)]
 pub struct CodexSessionBridge {
@@ -124,14 +124,12 @@ impl CodexSessionBridge {
         match adapter {
             CodexSourceAdapter::App => {
                 let app = CodexAppAdapter::new(self.dsn.clone(), self.ws_client.clone());
-                let ctx = CodexAppRequestContext {
-                    child_account_id: child_account_id.to_string(),
-                    source_id: source_id.to_string(),
-                    source_page: source_page.to_string(),
-                    observed_at: observed_at.to_string(),
-                    runtime_session_namespace: None,
-                    runtime_session_key_hint: None,
-                };
+                let ctx = build_codex_app_request_context(
+                    child_account_id,
+                    source_id,
+                    source_page,
+                    observed_at,
+                );
                 app.run_chat_via_ws(&ctx, model, user_text).await
             }
             CodexSourceAdapter::Web => {
@@ -166,14 +164,12 @@ impl CodexSessionBridge {
         match adapter {
             CodexSourceAdapter::App => {
                 let app = CodexAppAdapter::new(self.dsn.clone(), self.ws_client.clone());
-                let ctx = CodexAppRequestContext {
-                    child_account_id: child_account_id.to_string(),
-                    source_id: source_id.to_string(),
-                    source_page: source_page.to_string(),
-                    observed_at: observed_at.to_string(),
-                    runtime_session_namespace: None,
-                    runtime_session_key_hint: None,
-                };
+                let ctx = build_codex_app_request_context(
+                    child_account_id,
+                    source_id,
+                    source_page,
+                    observed_at,
+                );
                 app.run_response_via_ws(&ctx, model, input).await
             }
             CodexSourceAdapter::Web => {
@@ -194,6 +190,56 @@ impl CodexSessionBridge {
             }
         }
     }
+}
+
+fn build_codex_app_request_context(
+    child_account_id: &str,
+    source_id: &str,
+    source_page: &str,
+    observed_at: &str,
+) -> CodexAppRequestContext {
+    CodexAppRequestContext {
+        child_account_id: child_account_id.to_string(),
+        source_id: source_id.to_string(),
+        source_page: source_page.to_string(),
+        observed_at: observed_at.to_string(),
+        runtime_session_namespace: resolve_runtime_session_env(
+            "CODEX_APP_RUNTIME_SESSION_NAMESPACE",
+            child_account_id,
+            source_id,
+        ),
+        runtime_session_key_hint: resolve_runtime_session_env(
+            "CODEX_APP_RUNTIME_SESSION_KEY_HINT",
+            child_account_id,
+            source_id,
+        ),
+    }
+}
+
+fn resolve_runtime_session_env(prefix: &str, child_account_id: &str, source_id: &str) -> Option<String> {
+    let child = sanitize_env_fragment(child_account_id);
+    let source = sanitize_env_fragment(source_id);
+    let keys = [
+        format!("{}_{}_{}", prefix, child, source),
+        format!("{}_{}", prefix, child),
+        prefix.to_string(),
+    ];
+    for key in keys {
+        if let Ok(value) = env::var(&key) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn sanitize_env_fragment(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_uppercase() } else { '_' })
+        .collect()
 }
 
 fn resolve_source_adapter(source_id: &str) -> Result<CodexSourceAdapter, String> {
@@ -232,4 +278,43 @@ fn extract_response_text(payload: &Value) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .map(|v| v.to_string())
         .ok_or_else(|| "invalid_openclaw_ws_response_payload".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_codex_app_request_context_uses_scoped_runtime_env() {
+        unsafe {
+            env::set_var("CODEX_APP_RUNTIME_SESSION_NAMESPACE_CHILD_1_CODEX_APP", "scoped-ns");
+            env::set_var("CODEX_APP_RUNTIME_SESSION_KEY_HINT_CHILD_1_CODEX_APP", "scoped-key");
+        }
+
+        let ctx = build_codex_app_request_context("child-1", "codex-app", "/codex", "2026-04-03T12:00:00+08:00");
+        assert_eq!(ctx.runtime_session_namespace.as_deref(), Some("scoped-ns"));
+        assert_eq!(ctx.runtime_session_key_hint.as_deref(), Some("scoped-key"));
+
+        unsafe {
+            env::remove_var("CODEX_APP_RUNTIME_SESSION_NAMESPACE_CHILD_1_CODEX_APP");
+            env::remove_var("CODEX_APP_RUNTIME_SESSION_KEY_HINT_CHILD_1_CODEX_APP");
+        }
+    }
+
+    #[test]
+    fn build_codex_app_request_context_falls_back_to_global_runtime_env() {
+        unsafe {
+            env::set_var("CODEX_APP_RUNTIME_SESSION_NAMESPACE", "global-ns");
+            env::set_var("CODEX_APP_RUNTIME_SESSION_KEY_HINT", "global-key");
+        }
+
+        let ctx = build_codex_app_request_context("child-2", "codex-app", "/codex", "2026-04-03T12:00:00+08:00");
+        assert_eq!(ctx.runtime_session_namespace.as_deref(), Some("global-ns"));
+        assert_eq!(ctx.runtime_session_key_hint.as_deref(), Some("global-key"));
+
+        unsafe {
+            env::remove_var("CODEX_APP_RUNTIME_SESSION_NAMESPACE");
+            env::remove_var("CODEX_APP_RUNTIME_SESSION_KEY_HINT");
+        }
+    }
 }
