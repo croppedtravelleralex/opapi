@@ -1,4 +1,5 @@
 use crate::bridge::client::OpenClawWsClient;
+use chrono::{DateTime, Utc};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -8,6 +9,13 @@ pub struct CodexAppRequestContext {
     pub source_id: String,
     pub source_page: String,
     pub observed_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CodexAppHandshakeMeta {
+    pub session_namespace: String,
+    pub session_key_hint: String,
+    pub freshness_seconds: Option<i64>,
 }
 
 #[derive(Clone)]
@@ -31,13 +39,20 @@ impl CodexAppAdapter {
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
         let payload = client.proxy_codex_app_chat(model, user_text).await?;
+        let handshake = build_handshake_meta(ctx);
         extract_chat_text(&payload).map(|text| {
             format!(
-                "codex-app-adapter child={} observed_at={} source={} page={} via openclaw-ws output={}",
+                "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} via openclaw-ws output={}",
                 ctx.child_account_id,
                 ctx.observed_at,
                 ctx.source_id,
                 ctx.source_page,
+                handshake.session_namespace,
+                handshake.session_key_hint,
+                handshake
+                    .freshness_seconds
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "unknown".to_string()),
                 text
             )
         })
@@ -54,16 +69,36 @@ impl CodexAppAdapter {
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
         let payload = client.proxy_codex_app_response(model, input).await?;
+        let handshake = build_handshake_meta(ctx);
         extract_response_text(&payload).map(|text| {
             format!(
-                "codex-app-adapter child={} observed_at={} source={} page={} via openclaw-ws output={}",
+                "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} via openclaw-ws output={}",
                 ctx.child_account_id,
                 ctx.observed_at,
                 ctx.source_id,
                 ctx.source_page,
+                handshake.session_namespace,
+                handshake.session_key_hint,
+                handshake
+                    .freshness_seconds
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "unknown".to_string()),
                 text
             )
         })
+    }
+}
+
+fn build_handshake_meta(ctx: &CodexAppRequestContext) -> CodexAppHandshakeMeta {
+    let freshness_seconds = DateTime::parse_from_rfc3339(&ctx.observed_at)
+        .ok()
+        .map(|dt| Utc::now().signed_duration_since(dt.with_timezone(&Utc)).num_seconds())
+        .filter(|v| *v >= 0);
+
+    CodexAppHandshakeMeta {
+        session_namespace: format!("codex-app:{}", ctx.child_account_id),
+        session_key_hint: format!("{}:{}:{}", ctx.child_account_id, ctx.source_id, ctx.source_page),
+        freshness_seconds,
     }
 }
 
