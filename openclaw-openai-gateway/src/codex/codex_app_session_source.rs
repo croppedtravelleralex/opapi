@@ -24,11 +24,15 @@ impl CodexAppSessionSource {
     pub fn resolve(&self, ctx: &CodexAppRequestContext) -> CodexAppHandshakeMeta {
         let freshness_seconds = chrono::DateTime::parse_from_rfc3339(&ctx.observed_at)
             .ok()
-            .map(|dt| chrono::Utc::now().signed_duration_since(dt.with_timezone(&chrono::Utc)).num_seconds())
+            .map(|dt| {
+                chrono::Utc::now()
+                    .signed_duration_since(dt.with_timezone(&chrono::Utc))
+                    .num_seconds()
+            })
             .filter(|v| *v >= 0);
 
         let sqlite = self.resolve_from_sqlite(ctx);
-        CodexAppHandshakeMeta {
+        let handshake = CodexAppHandshakeMeta {
             session_namespace: sqlite
                 .as_ref()
                 .and_then(|row| row.session_namespace.clone())
@@ -43,7 +47,9 @@ impl CodexAppSessionSource {
                     )
                 }),
             freshness_seconds,
-        }
+        };
+        let _ = self.persist_resolved(ctx, &handshake);
+        handshake
     }
 
     fn resolve_from_sqlite(&self, ctx: &CodexAppRequestContext) -> Option<CodexAppSessionRow> {
@@ -68,6 +74,31 @@ impl CodexAppSessionSource {
         .optional()
         .ok()
         .flatten()
+    }
+
+    fn persist_resolved(
+        &self,
+        ctx: &CodexAppRequestContext,
+        handshake: &CodexAppHandshakeMeta,
+    ) -> Result<(), String> {
+        let model_repo = SqliteModelRepository::new(self.dsn.clone(), InMemoryStore::default());
+        model_repo.init_schema().map_err(|e| e.to_string())?;
+        let conn = Connection::open(&self.dsn).map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT OR REPLACE INTO codex_app_sessions (
+                id, child_account_id, source_id, session_namespace, session_key_hint, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                format!("codex-app-session:{}:{}", ctx.child_account_id, ctx.source_id),
+                ctx.child_account_id,
+                ctx.source_id,
+                handshake.session_namespace,
+                handshake.session_key_hint,
+                chrono::Utc::now().to_rfc3339(),
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 
@@ -119,5 +150,38 @@ mod tests {
 
         assert_eq!(resolved.session_namespace, "sqlite-ns");
         assert_eq!(resolved.session_key_hint, "sqlite-key");
+    }
+
+    #[test]
+    fn resolve_persists_generated_session_row_when_sqlite_empty() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dsn = format!("/tmp/openclaw-codex-app-session-generated-{}.sqlite3", unique);
+        let repo = SqliteModelRepository::new(dsn.clone(), InMemoryStore::default());
+        repo.init_schema().unwrap();
+
+        let source = CodexAppSessionSource::from_env(dsn.clone());
+        let resolved = source.resolve(&CodexAppRequestContext {
+            child_account_id: "child-2".into(),
+            source_id: "codex-app".into(),
+            source_page: "/codex".into(),
+            observed_at: "2026-04-03T11:00:01+08:00".into(),
+        });
+
+        assert_eq!(resolved.session_namespace, "codex-app:child-2");
+        assert_eq!(resolved.session_key_hint, "local-dev:child-2:codex-app:/codex");
+
+        let conn = Connection::open(&dsn).unwrap();
+        let row: (String, String) = conn
+            .query_row(
+                "SELECT session_namespace, session_key_hint FROM codex_app_sessions WHERE child_account_id = ?1 AND source_id = ?2",
+                params!["child-2", "codex-app"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row.0, "codex-app:child-2");
+        assert_eq!(row.1, "local-dev:child-2:codex-app:/codex");
     }
 }
