@@ -29,6 +29,97 @@ async fn test_app() -> (axum::Router, String) {
 }
 
 #[tokio::test]
+async fn codex_quota_collect_returns_green_admission_for_healthy_quota() {
+    let (app, _db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-green-1",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "5h 78% 7d 91% requests 12 tokens 3456 messages 8"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["admission"]["pool_status"], "active");
+    assert_eq!(payload["admission"]["admission_level"], "green");
+    assert_eq!(payload["admission"]["weight"], 100);
+}
+
+#[tokio::test]
+async fn codex_quota_collect_returns_yellow_admission_for_low_quota() {
+    let (app, _db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-yellow-1",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "5h 18% 7d 84% requests 12 tokens 3456 messages 8"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["admission"]["pool_status"], "active");
+    assert_eq!(payload["admission"]["admission_level"], "yellow");
+    assert_eq!(payload["admission"]["weight"], 30);
+}
+
+#[tokio::test]
+async fn codex_quota_collect_returns_red_admission_when_read_fails() {
+    let (app, _db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-red-1",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "hello nothing useful here"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["admission"]["pool_status"], "cooling");
+    assert_eq!(payload["admission"]["admission_level"], "red");
+    assert_eq!(payload["admission"]["weight"], 0);
+}
+
+#[tokio::test]
 async fn codex_quota_collect_parses_and_persists_snapshot() {
     let (app, db_path) = test_app().await;
     let response = app

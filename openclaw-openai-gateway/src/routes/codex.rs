@@ -1,5 +1,5 @@
 use crate::{
-    codex::collector::CodexQuotaCollector,
+    codex::{admission::decide_from_snapshot, collector::CodexQuotaCollector},
     domain::codex_quota_source::{default_codex_quota_sources, CodexQuotaSource},
     state::AppState,
 };
@@ -52,6 +52,15 @@ pub struct CollectCodexQuotaRequest {
 #[derive(Serialize)]
 pub struct CollectCodexQuotaResponse {
     pub data: crate::domain::quota_snapshot::QuotaSnapshot,
+    pub admission: CodexAdmissionItem,
+}
+
+#[derive(Serialize)]
+pub struct CodexAdmissionItem {
+    pub pool_status: String,
+    pub admission_level: String,
+    pub weight: i64,
+    pub reasons: Vec<String>,
 }
 
 pub async fn collect_codex_quota(
@@ -82,8 +91,17 @@ pub async fn collect_codex_quota(
             read_ok: false,
             error_reason: Some(error_reason),
         });
+    let decision = decide_from_snapshot(&snapshot);
 
-    Json(CollectCodexQuotaResponse { data: snapshot })
+    Json(CollectCodexQuotaResponse {
+        data: snapshot,
+        admission: CodexAdmissionItem {
+            pool_status: decision.pool_member.pool_status,
+            admission_level: decision.pool_member.admission_level,
+            weight: decision.pool_member.weight,
+            reasons: decision.reasons,
+        },
+    })
 }
 
 pub async fn list_codex_quota_sources(

@@ -4,12 +4,12 @@
 - [x] 打通主线设计文档并写入项目
 - [x] 建立母号 / 子号 / 空间成员 / 邀请任务 / 额度快照 / 池成员 / 外部 API Key 数据模型
 - [x] 将 `parent_accounts / child_accounts / space_memberships / invite_tasks / quota_snapshots / pool_members / proxy_api_keys` 加入 SQLite schema
-- [~] 打通 **Codex App 额度反代链路**（已落最小采集器骨架，未接真实浏览器）
+- [~] 打通 **Codex App 额度反代链路**（已落最小采集器 + admission 骨架，未接真实浏览器）
 - [ ] 打通 **Web 会话 / Web 额度反代链路**
 - [x] 建立统一 **额度来源抽象**（App / Web）
 - [ ] 建立统一 **反代执行入口**（chat / responses 真分发）
 - [ ] 让系统能基于真实额度来源对外提供 API Key
-- [ ] 建立最小 **额度池**（可用/不可用/来源类型）
+- [~] 建立最小 **额度池**（已落 admission 判定，未写回 `pool_members`）
 - [x] 提供最小 **额度观测查询接口**（`/v1/codex/quota-sources` / `/v1/codex/quota-overview`）
 - [x] 提供最小 **额度采集写入口**（`/v1/codex/quota/collect`）
 
@@ -21,6 +21,7 @@
 - [ ] 补 auth / health / models / chat / responses 更完整测试
 - [ ] 补 SQLite repository 真读写测试
 - [ ] 补 parser 页面变体兼容测试
+- [x] 补 admission 三档判定测试
 
 ## P2：池化与治理增强
 - [ ] 建立 Account / AccountPool 最小骨架
@@ -49,6 +50,7 @@
 - [x] `Codex App / Web` 额度来源骨架
 - [x] `Codex` 额度观测汇总接口
 - [x] `Codex App` 最小额度采集器骨架
+- [x] `Codex` admission 判定骨架
 
 ## 暂缓 / 降级优先级
 - [ ] 第三方 API Key + BaseURL provider 扩展（暂不作为当前主线）
