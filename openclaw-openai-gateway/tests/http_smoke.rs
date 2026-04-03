@@ -753,6 +753,9 @@ async fn chat_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_unrea
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert!(payload["error"].to_string().contains("upstream unavailable"));
 }
 
 #[tokio::test]

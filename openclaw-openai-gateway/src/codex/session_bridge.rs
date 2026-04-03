@@ -1,4 +1,4 @@
-use crate::bridge::client::OpenClawWsClient;
+use crate::{bridge::client::OpenClawWsClient, codex::codex_app_adapter::CodexAppAdapter};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -89,20 +89,30 @@ impl CodexSessionBridge {
         model: &str,
         user_text: &str,
     ) -> Result<String, String> {
-        let client = self
-            .ws_client
-            .as_ref()
-            .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let payload = client.proxy_chat(model, user_text).await?;
-        extract_chat_text(&payload).map(|text| {
-            format!(
-                "openclaw-ws-session-bridge adapter={} source={} page={} output={}",
-                adapter_name(adapter),
-                source_id,
-                source_page,
-                text
-            )
-        })
+        match adapter {
+            CodexSourceAdapter::App => {
+                let app = CodexAppAdapter::new(self.ws_client.clone());
+                app.run_chat_via_ws(model, user_text)
+                    .await
+                    .map(|text| format!("source={} page={} {}", source_id, source_page, text))
+            }
+            CodexSourceAdapter::Web => {
+                let client = self
+                    .ws_client
+                    .as_ref()
+                    .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
+                let payload = client.proxy_chat(model, user_text).await?;
+                extract_chat_text(&payload).map(|text| {
+                    format!(
+                        "openclaw-ws-session-bridge adapter={} source={} page={} output={}",
+                        adapter_name(adapter),
+                        source_id,
+                        source_page,
+                        text
+                    )
+                })
+            }
+        }
     }
 
     async fn openclaw_ws_response(
@@ -113,20 +123,30 @@ impl CodexSessionBridge {
         model: &str,
         input: &str,
     ) -> Result<String, String> {
-        let client = self
-            .ws_client
-            .as_ref()
-            .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let payload = client.proxy_response(model, input).await?;
-        extract_response_text(&payload).map(|text| {
-            format!(
-                "openclaw-ws-session-bridge adapter={} source={} page={} output={}",
-                adapter_name(adapter),
-                source_id,
-                source_page,
-                text
-            )
-        })
+        match adapter {
+            CodexSourceAdapter::App => {
+                let app = CodexAppAdapter::new(self.ws_client.clone());
+                app.run_response_via_ws(model, input)
+                    .await
+                    .map(|text| format!("source={} page={} {}", source_id, source_page, text))
+            }
+            CodexSourceAdapter::Web => {
+                let client = self
+                    .ws_client
+                    .as_ref()
+                    .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
+                let payload = client.proxy_response(model, input).await?;
+                extract_response_text(&payload).map(|text| {
+                    format!(
+                        "openclaw-ws-session-bridge adapter={} source={} page={} output={}",
+                        adapter_name(adapter),
+                        source_id,
+                        source_page,
+                        text
+                    )
+                })
+            }
+        }
     }
 }
 
