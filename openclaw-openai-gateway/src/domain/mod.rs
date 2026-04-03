@@ -1,5 +1,6 @@
 pub mod account;
 pub mod change_plan;
+pub mod codex_quota_source;
 pub mod config_snapshot;
 pub mod invite_task;
 pub mod model_availability;

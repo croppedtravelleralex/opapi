@@ -29,6 +29,95 @@ async fn test_app() -> (axum::Router, String) {
 }
 
 #[tokio::test]
+async fn codex_quota_sources_returns_app_and_web_sources() {
+    let (app, _db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/codex/quota-sources")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    let data = payload["data"].as_array().unwrap();
+    assert!(data.iter().any(|item| item["id"] == "codex-app" && item["provider_id"] == "codex.app"));
+    assert!(data.iter().any(|item| item["id"] == "codex-web" && item["provider_id"] == "codex.web"));
+}
+
+#[tokio::test]
+async fn codex_quota_overview_returns_seeded_observation_stats() {
+    let (app, db_path) = test_app().await;
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "INSERT INTO quota_snapshots (
+            id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
+            request_count, token_count, message_count, source_page, confidence, read_ok, error_reason
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        rusqlite::params![
+            "snap-1",
+            "child-1",
+            "2026-04-03T08:20:00+08:00",
+            81.5_f64,
+            92.0_f64,
+            12_i64,
+            3456_i64,
+            7_i64,
+            "/codex",
+            0.96_f64,
+            1_i64,
+            Option::<String>::None,
+        ],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO quota_snapshots (
+            id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
+            request_count, token_count, message_count, source_page, confidence, read_ok, error_reason
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        rusqlite::params![
+            "snap-2",
+            "child-2",
+            "2026-04-03T08:21:00+08:00",
+            Option::<f64>::None,
+            Option::<f64>::None,
+            Option::<i64>::None,
+            Option::<i64>::None,
+            Option::<i64>::None,
+            "/codex",
+            0.12_f64,
+            0_i64,
+            Some("dom_changed".to_string()),
+        ],
+    )
+    .unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/codex/quota-overview")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["data"]["sources_total"], 2);
+    assert_eq!(payload["data"]["sources_enabled"], 2);
+    assert_eq!(payload["data"]["observations_total"], 2);
+    assert_eq!(payload["data"]["read_ok_total"], 1);
+    assert_eq!(payload["data"]["read_failed_total"], 1);
+    assert_eq!(payload["data"]["latest_observed_at"], "2026-04-03T08:21:00+08:00");
+}
+
+#[tokio::test]
 async fn healthz_returns_ok() {
     let (app, _db_path) = test_app().await;
     let response = app

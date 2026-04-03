@@ -2,6 +2,7 @@ use crate::{
     bridge::client::OpenClawWsClient,
     config::Config,
     domain::{
+        codex_quota_source::default_codex_quota_sources,
         model_catalog::load_from_config,
         models::ModelCatalogEntry,
         provider::{ProviderClass, ProviderDescriptor},
@@ -42,6 +43,16 @@ impl AppState {
         let gateway_provider = Arc::new(GatewayProvider::new(ws_client.clone()));
         let mut model_catalog = load_from_config(&config.models);
         let mut provider_pool = default_provider_pool();
+
+        for source in default_codex_quota_sources() {
+            provider_pool.push(ProviderDescriptor {
+                id: source.provider_id,
+                class: ProviderClass::Web,
+                enabled: source.enabled,
+                base_url: source.base_url,
+                api_key_hint: None,
+            });
+        }
 
         if let Some(imported) = crate::providers::import::from_config(&config) {
             provider_pool.push(ProviderDescriptor {
