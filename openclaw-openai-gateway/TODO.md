@@ -1,60 +1,52 @@
 # TODO（openclaw-openai-gateway）
 
-## P0：核心主线（先反代出额度）
-- [x] 打通主线设计文档并写入项目
-- [x] 建立母号 / 子号 / 空间成员 / 邀请任务 / 额度快照 / 池成员 / 外部 API Key 数据模型
-- [x] 将 `parent_accounts / child_accounts / space_memberships / invite_tasks / quota_snapshots / pool_members / proxy_api_keys` 加入 SQLite schema
-- [~] 打通 **Codex App 额度反代链路**（已落最小采集器 + admission + 入池写回骨架，未接真实浏览器）
-- [ ] 打通 **Web 会话 / Web 额度反代链路**
+## P0：本机轻服务主线
+- [x] 收口项目定位：**单机轻服务**，不是大平台
+- [x] 保留最小 API 面：`health / models / providers / codex / chat / responses`
+- [x] 从主运行面移除 governance 路由
+- [ ] 冻结/删除 governance 相关模块与文档
+- [ ] 冻结第三方 provider 扩展路径
+- [ ] 清理低价值 domain 预留模型
+- [ ] 收清仓库边界与工作树污染
+
+## P1：Codex 真实额度主链
+- [~] 打通 **Codex App 额度反代链路**（已落采集、admission、入池、bridge 骨架，未接真实浏览器）
+- [~] 打通 **Codex Web 额度反代链路**（已落来源入口与 bridge adapter 分派，未接真实采集与真实会话）
 - [x] 建立统一 **额度来源抽象**（App / Web）
-- [~] 建立统一 **反代执行入口**（chat / responses 已开始读取 `pool_members`，尚未绑定具体来源执行）
-- [ ] 让系统能基于真实额度来源对外提供 API Key
-- [~] 建立最小 **额度池**（已落 admission 判定并写回 `pool_members`，已开始参与最小路由）
+- [~] 建立统一 **反代执行入口**（已落 source context + session bridge + adapter dispatch）
+- [~] 建立最小 **额度池**（已落 admission + pool_members + pool routing）
 - [x] 提供最小 **额度观测查询接口**（`/v1/codex/quota-sources` / `/v1/codex/quota-overview`）
 - [x] 提供最小 **额度采集写入口**（`/v1/codex/quota/collect`）
+- [ ] 让系统能基于真实额度来源对外提供 API Key
 
-## P1：反代稳定化
-- [ ] 做额度来源探活
-- [ ] 做额度可用性状态记录
-- [ ] 做基础失败切换（同类来源内切换）
-- [ ] 做基础审计查询接口
-- [ ] 补 auth / health / models / chat / responses 更完整测试
+## P2：稳定化
+- [ ] 做来源探活
+- [ ] 做来源失效 / 过期 / fallback
+- [ ] 做 pool member 冷却 / 恢复 / 负载更新
 - [ ] 补 SQLite repository 真读写测试
 - [ ] 补 parser 页面变体兼容测试
-- [x] 补 admission 三档判定测试
-- [x] 补 pool_members 写回测试
-- [~] 补 pool 路由测试（已补最小头部与空池分支）
+- [ ] 补 bridge 失败边界测试
+- [ ] 后续按需补轻 scheduler
 
-## P2：池化与治理增强
-- [ ] 建立 Account / AccountPool 最小骨架
-- [ ] 建立容灾机制
-- [ ] 建立平衡/调度机制
-- [ ] 建立 SessionPool / WebSessionPool
-- [ ] 建立 governance / config snapshot / release record / change plan 更完整工作流
-- [ ] 支持 SSE 流式
-- [ ] 扩展 embeddings / images / audio 能力面
-- [ ] 建立 automation / maintenance job 主梁
-
-## 已完成的底座
+## 已完成底座
 - [x] Rust 工程骨架
+- [x] SQLite 控制平面骨架
 - [x] `healthz` / `readyz` / `/v1/models` / `/v1/chat/completions` / `/v1/responses`
-- [x] Bearer API Key 中间件
-- [x] request id 中间件
+- [x] Bearer API Key middleware
+- [x] request id middleware
 - [x] OpenClaw WS client skeleton
-- [x] SQLite skeleton 与最小控制平面落库
-- [x] `/v1/models` / `/v1/providers` SQLite-backed reads
-- [x] `provider_capabilities / model_availability` 建表与 seed
-- [x] routing 读取 SQLite provider 数据
-- [x] capability / availability 开始参与 routing
-- [x] audit 持久化到 SQLite
-- [x] governance skeleton
-- [x] smoke tests
 - [x] `Codex App / Web` 额度来源骨架
-- [x] `Codex` 额度观测汇总接口
-- [x] `Codex App` 最小额度采集器骨架
-- [x] `Codex` admission 判定骨架
-- [x] `pool_members` 最小写回链路
-- [x] `chat / responses` 最小池前置路由判断
+- [x] `Codex` quota overview / collect
+- [x] admission skeleton
+- [x] pool_members 写回
+- [x] pool routing
+- [x] source context
+- [x] session bridge
+- [x] source-aware adapter dispatch
+- [x] smoke tests
 
-## 暂缓 / 降级优先级
-- [ ] 第三方 API Key + BaseURL provider 扩展（暂不作为当前主线）
+## 明确不做 / 延后
+- [ ] GUI 桌面端
+- [ ] 重 dashboard
+- [ ] governance 平台化控制面
+- [ ] 第三方 provider 市场化扩展
