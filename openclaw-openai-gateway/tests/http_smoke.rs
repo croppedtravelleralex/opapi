@@ -29,6 +29,50 @@ async fn test_app() -> (axum::Router, String) {
 }
 
 #[tokio::test]
+async fn codex_quota_collect_persists_pool_member_after_admission() {
+    let (app, db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-pool-1",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "5h 78% 7d 91% requests 12 tokens 3456 messages 8"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["persisted_pool_member"]["child_account_id"], "child-pool-1");
+    assert_eq!(payload["persisted_pool_member"]["pool_status"], "active");
+    assert_eq!(payload["persisted_pool_member"]["admission_level"], "green");
+    assert_eq!(payload["persisted_pool_member"]["weight"], 100);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let row: (String, String, i64) = conn
+        .query_row(
+            "SELECT pool_status, admission_level, weight FROM pool_members WHERE child_account_id = 'child-pool-1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(row.0, "active");
+    assert_eq!(row.1, "green");
+    assert_eq!(row.2, 100);
+}
+
+#[tokio::test]
 async fn codex_quota_collect_returns_green_admission_for_healthy_quota() {
     let (app, _db_path) = test_app().await;
     let response = app

@@ -1,19 +1,19 @@
 # 当前任务（openclaw-openai-gateway）
 
-当前任务：**把 Codex App / Web 额度反代主线正式落成第三段可运行骨架。**
+当前任务：**把 Codex App / Web 额度反代主线正式落成第四段可运行骨架。**
 
 本轮已完成：
-1. 已建立“额度观测结果 → 准入判定”的最小 admission 层
-2. `collect` 接口现在会直接返回 `pool_status / admission_level / weight / reasons`
-3. 已落最小三档规则：`green / yellow / red`
-4. 已落最小冷却逻辑：读取失败或额度过低会进入 `cooling`
-5. 已补 smoke tests，覆盖健康额度 / 低额度 / 读取失败三类判定
+1. 已把 admission 结果正式写回 `pool_members`
+2. `collect` 接口现在会返回 `persisted_pool_member`，可直接验证入池结果
+3. 已补 `pool_members` upsert 逻辑，支持同 child account 重复更新
+4. 已补 smoke test，确认 `collect -> admission -> pool_members` 主链路打通
+5. 已让控制面从“只会判断”推进到“会记录当前池状态”
 
 下一轮继续推进：
-1. 把 admission 结果真正写入 `pool_members`
-2. 建立按可用额度来源做最小路由的执行入口
-3. 落 `Codex Web` 多信号采集器
-4. 补 parser 与 admission 的边界测试
+1. 把 chat / responses 绑定到 `pool_members` 中可用来源
+2. 落 `Codex Web` 多信号采集器
+3. 给 `pool_members` 增加更多治理字段与冷却恢复逻辑
+4. 补 pool routing 与边界测试
 
 本轮不追求：
 - GUI

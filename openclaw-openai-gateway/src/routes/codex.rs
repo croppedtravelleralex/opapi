@@ -1,5 +1,9 @@
 use crate::{
-    codex::{admission::decide_from_snapshot, collector::CodexQuotaCollector},
+    codex::{
+        admission::decide_from_snapshot,
+        collector::CodexQuotaCollector,
+        pool_repo::PoolMemberRepository,
+    },
     domain::codex_quota_source::{default_codex_quota_sources, CodexQuotaSource},
     state::AppState,
 };
@@ -53,6 +57,7 @@ pub struct CollectCodexQuotaRequest {
 pub struct CollectCodexQuotaResponse {
     pub data: crate::domain::quota_snapshot::QuotaSnapshot,
     pub admission: CodexAdmissionItem,
+    pub persisted_pool_member: CodexPersistedPoolMemberItem,
 }
 
 #[derive(Serialize)]
@@ -61,6 +66,14 @@ pub struct CodexAdmissionItem {
     pub admission_level: String,
     pub weight: i64,
     pub reasons: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct CodexPersistedPoolMemberItem {
+    pub child_account_id: String,
+    pub pool_status: String,
+    pub admission_level: String,
+    pub weight: i64,
 }
 
 pub async fn collect_codex_quota(
@@ -92,14 +105,27 @@ pub async fn collect_codex_quota(
             error_reason: Some(error_reason),
         });
     let decision = decide_from_snapshot(&snapshot);
+    let pool_repo = PoolMemberRepository::new(state.config.sqlite_path.clone());
+    let _ = pool_repo.upsert(&decision.pool_member);
+    let persisted = pool_repo
+        .get_by_child_account_id(&decision.pool_member.child_account_id)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| decision.pool_member.clone());
 
     Json(CollectCodexQuotaResponse {
         data: snapshot,
         admission: CodexAdmissionItem {
-            pool_status: decision.pool_member.pool_status,
-            admission_level: decision.pool_member.admission_level,
+            pool_status: decision.pool_member.pool_status.clone(),
+            admission_level: decision.pool_member.admission_level.clone(),
             weight: decision.pool_member.weight,
             reasons: decision.reasons,
+        },
+        persisted_pool_member: CodexPersistedPoolMemberItem {
+            child_account_id: persisted.child_account_id,
+            pool_status: persisted.pool_status,
+            admission_level: persisted.admission_level,
+            weight: persisted.weight,
         },
     })
 }
