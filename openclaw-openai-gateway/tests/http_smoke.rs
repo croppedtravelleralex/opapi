@@ -545,7 +545,7 @@ async fn providers_returns_list() {
 }
 
 #[tokio::test]
-async fn providers_can_include_imported_third_party_api_key_and_base_url() {
+async fn providers_do_not_import_third_party_provider_in_local_first_mode() {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -580,12 +580,7 @@ async fn providers_can_include_imported_third_party_api_key_and_base_url() {
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
     let data = payload["data"].as_array().unwrap();
-    assert!(data.iter().any(|item| {
-        item["id"] == "api.openai-compatible-demo"
-            && item["class"] == "Api"
-            && item["base_url"] == "https://example.com/v1"
-            && item["api_key_hint"] == "sk-dem***"
-    }));
+    assert!(!data.iter().any(|item| item["id"] == "api.openai-compatible-demo"));
 }
 
 #[tokio::test]

@@ -1,7 +1,5 @@
 pub mod account;
-pub mod change_plan;
 pub mod codex_quota_source;
-pub mod config_snapshot;
 pub mod invite_task;
 pub mod model_availability;
 pub mod model_catalog;
@@ -13,7 +11,5 @@ pub mod provider_capability;
 pub mod provider_pool;
 pub mod proxy_api_key;
 pub mod quota_snapshot;
-pub mod release_record;
 pub mod routing;
 pub mod space_membership;
-pub mod third_party_provider;

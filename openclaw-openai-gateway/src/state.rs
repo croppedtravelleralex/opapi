@@ -41,7 +41,7 @@ impl AppState {
             config.openclaw_api_timeout_ms,
         ));
         let gateway_provider = Arc::new(GatewayProvider::new(ws_client.clone()));
-        let mut model_catalog = load_from_config(&config.models);
+        let model_catalog = load_from_config(&config.models);
         let mut provider_pool = default_provider_pool();
 
         for source in default_codex_quota_sources() {
@@ -51,21 +51,6 @@ impl AppState {
                 enabled: source.enabled,
                 base_url: source.base_url,
                 api_key_hint: None,
-            });
-        }
-
-        if let Some(imported) = crate::providers::import::from_config(&config) {
-            provider_pool.push(ProviderDescriptor {
-                id: imported.id.clone(),
-                class: ProviderClass::Api,
-                enabled: true,
-                base_url: Some(imported.base_url.clone()),
-                api_key_hint: Some(mask_api_key(&imported.api_key)),
-            });
-            model_catalog.push(ModelCatalogEntry {
-                canonical_name: imported.model.clone(),
-                alias: None,
-                provider_hint: Some(imported.id.clone()),
             });
         }
 
@@ -97,11 +82,4 @@ impl AppState {
             sqlite_audit_repo,
         })
     }
-}
-
-fn mask_api_key(raw: &str) -> String {
-    if raw.len() <= 6 {
-        return "***".into();
-    }
-    format!("{}***", &raw[..6])
 }
