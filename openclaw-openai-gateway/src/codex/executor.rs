@@ -37,6 +37,7 @@ impl CodexExecutor {
             .latest_for_child(&member.child_account_id)?;
         let bridge = CodexSessionBridge::new(
             self.session_bridge_mode.clone(),
+            self.dsn.clone(),
             self.ws_client.clone(),
         );
         let bridged = bridge
@@ -82,6 +83,7 @@ impl CodexExecutor {
             .latest_for_child(&member.child_account_id)?;
         let bridge = CodexSessionBridge::new(
             self.session_bridge_mode.clone(),
+            self.dsn.clone(),
             self.ws_client.clone(),
         );
         let bridged = bridge

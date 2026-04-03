@@ -140,6 +140,14 @@ impl SqliteModelRepository {
                 last_success_at TEXT,
                 last_failure_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS codex_app_sessions (
+                id TEXT PRIMARY KEY,
+                child_account_id TEXT NOT NULL,
+                source_id TEXT NOT NULL DEFAULT 'codex-app',
+                session_namespace TEXT,
+                session_key_hint TEXT,
+                updated_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS proxy_api_keys (
                 id TEXT PRIMARY KEY,
                 label TEXT NOT NULL,

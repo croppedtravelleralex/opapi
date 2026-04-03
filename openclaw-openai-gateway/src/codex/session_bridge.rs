@@ -8,6 +8,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct CodexSessionBridge {
     mode: String,
+    dsn: String,
     ws_client: Option<Arc<OpenClawWsClient>>,
 }
 
@@ -18,8 +19,8 @@ enum CodexSourceAdapter {
 }
 
 impl CodexSessionBridge {
-    pub fn new(mode: String, ws_client: Option<Arc<OpenClawWsClient>>) -> Self {
-        Self { mode, ws_client }
+    pub fn new(mode: String, dsn: String, ws_client: Option<Arc<OpenClawWsClient>>) -> Self {
+        Self { mode, dsn, ws_client }
     }
 
     pub async fn run_chat(
@@ -122,7 +123,7 @@ impl CodexSessionBridge {
     ) -> Result<String, String> {
         match adapter {
             CodexSourceAdapter::App => {
-                let app = CodexAppAdapter::new(self.ws_client.clone());
+                let app = CodexAppAdapter::new(self.dsn.clone(), self.ws_client.clone());
                 let ctx = CodexAppRequestContext {
                     child_account_id: child_account_id.to_string(),
                     source_id: source_id.to_string(),
@@ -162,7 +163,7 @@ impl CodexSessionBridge {
     ) -> Result<String, String> {
         match adapter {
             CodexSourceAdapter::App => {
-                let app = CodexAppAdapter::new(self.ws_client.clone());
+                let app = CodexAppAdapter::new(self.dsn.clone(), self.ws_client.clone());
                 let ctx = CodexAppRequestContext {
                     child_account_id: child_account_id.to_string(),
                     source_id: source_id.to_string(),

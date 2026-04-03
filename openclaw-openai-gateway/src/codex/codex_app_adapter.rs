@@ -20,12 +20,13 @@ pub struct CodexAppHandshakeMeta {
 
 #[derive(Clone)]
 pub struct CodexAppAdapter {
+    dsn: String,
     ws_client: Option<Arc<OpenClawWsClient>>,
 }
 
 impl CodexAppAdapter {
-    pub fn new(ws_client: Option<Arc<OpenClawWsClient>>) -> Self {
-        Self { ws_client }
+    pub fn new(dsn: String, ws_client: Option<Arc<OpenClawWsClient>>) -> Self {
+        Self { dsn, ws_client }
     }
 
     pub async fn run_chat_via_ws(
@@ -38,7 +39,7 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let handshake = CodexAppSessionSource::from_env().resolve(ctx);
+        let handshake = CodexAppSessionSource::from_env(self.dsn.clone()).resolve(ctx);
         let payload = client
             .proxy_codex_app_chat(
                 model,
@@ -76,7 +77,7 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let handshake = CodexAppSessionSource::from_env().resolve(ctx);
+        let handshake = CodexAppSessionSource::from_env(self.dsn.clone()).resolve(ctx);
         let payload = client
             .proxy_codex_app_response(
                 model,
