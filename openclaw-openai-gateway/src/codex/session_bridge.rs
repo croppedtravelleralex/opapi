@@ -129,6 +129,8 @@ impl CodexSessionBridge {
                     source_id: source_id.to_string(),
                     source_page: source_page.to_string(),
                     observed_at: observed_at.to_string(),
+                    runtime_session_namespace: None,
+                    runtime_session_key_hint: None,
                 };
                 app.run_chat_via_ws(&ctx, model, user_text).await
             }
@@ -169,6 +171,8 @@ impl CodexSessionBridge {
                     source_id: source_id.to_string(),
                     source_page: source_page.to_string(),
                     observed_at: observed_at.to_string(),
+                    runtime_session_namespace: None,
+                    runtime_session_key_hint: None,
                 };
                 app.run_response_via_ws(&ctx, model, input).await
             }

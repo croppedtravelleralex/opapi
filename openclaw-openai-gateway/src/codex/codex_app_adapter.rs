@@ -9,6 +9,8 @@ pub struct CodexAppRequestContext {
     pub source_id: String,
     pub source_page: String,
     pub observed_at: String,
+    pub runtime_session_namespace: Option<String>,
+    pub runtime_session_key_hint: Option<String>,
 }
 
 #[derive(Debug, Clone)]
