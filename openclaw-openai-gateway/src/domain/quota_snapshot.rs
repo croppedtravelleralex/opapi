@@ -10,6 +10,7 @@ pub struct QuotaSnapshot {
     pub request_count: Option<i64>,
     pub token_count: Option<i64>,
     pub message_count: Option<i64>,
+    pub source_id: Option<String>,
     pub source_page: Option<String>,
     pub confidence: Option<f64>,
     pub read_ok: bool,

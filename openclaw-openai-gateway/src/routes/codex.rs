@@ -99,6 +99,7 @@ pub async fn collect_codex_quota(
             request_count: None,
             token_count: None,
             message_count: None,
+            source_id: Some("codex-app".into()),
             source_page: Some("/codex".into()),
             confidence: Some(0.0),
             read_ok: false,

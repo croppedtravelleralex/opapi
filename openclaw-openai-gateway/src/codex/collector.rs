@@ -20,11 +20,12 @@ impl CodexQuotaCollector {
 
     fn persist_snapshot(&self, snapshot: &QuotaSnapshot) -> Result<(), String> {
         let conn = Connection::open(&self.dsn).map_err(|e| e.to_string())?;
+        let _ = conn.execute("ALTER TABLE quota_snapshots ADD COLUMN source_id TEXT", []);
         conn.execute(
             "INSERT INTO quota_snapshots (
                 id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
-                request_count, token_count, message_count, source_page, confidence, read_ok, error_reason
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                request_count, token_count, message_count, source_id, source_page, confidence, read_ok, error_reason
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 snapshot.id,
                 snapshot.child_account_id,
@@ -34,6 +35,7 @@ impl CodexQuotaCollector {
                 snapshot.request_count,
                 snapshot.token_count,
                 snapshot.message_count,
+                snapshot.source_id,
                 snapshot.source_page,
                 snapshot.confidence,
                 if snapshot.read_ok { 1_i64 } else { 0_i64 },

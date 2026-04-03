@@ -43,6 +43,7 @@ pub fn parse_quota_page(input: &CodexQuotaPageInput) -> QuotaSnapshot {
         request_count: parsed.request_count,
         token_count: parsed.token_count,
         message_count: parsed.message_count,
+        source_id: Some(input.source_id.clone()),
         source_page: Some(input.source_page.clone()),
         confidence: Some(parsed.confidence),
         read_ok,

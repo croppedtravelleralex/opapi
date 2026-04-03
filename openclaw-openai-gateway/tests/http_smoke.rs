@@ -25,6 +25,8 @@ async fn test_app() -> (axum::Router, String) {
         third_party_model: None,
     };
     let state = Arc::new(AppState::new(config).await.unwrap());
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let _ = conn.execute("ALTER TABLE quota_snapshots ADD COLUMN source_id TEXT", []);
     (build_app(state), db_path)
 }
 
@@ -93,6 +95,27 @@ async fn chat_uses_best_active_pool_member_headers() {
             Option::<String>::None,
         ],
     ).unwrap();
+    conn.execute(
+        "INSERT INTO quota_snapshots (
+            id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
+            request_count, token_count, message_count, source_id, source_page, confidence, read_ok, error_reason
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        rusqlite::params![
+            "snap-chat-1",
+            "child-green-1",
+            "2026-04-03T09:00:01+08:00",
+            78.0_f64,
+            91.0_f64,
+            12_i64,
+            3456_i64,
+            8_i64,
+            "codex-app",
+            "/codex",
+            0.96_f64,
+            1_i64,
+            Option::<String>::None,
+        ],
+    ).unwrap();
 
     let response = app
         .oneshot(
@@ -117,7 +140,7 @@ async fn chat_uses_best_active_pool_member_headers() {
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "green");
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green]: ping");
+    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green] source=codex-app page=/codex: ping");
 }
 
 #[tokio::test]
@@ -168,6 +191,27 @@ async fn responses_uses_best_active_pool_member_headers() {
             Option::<String>::None,
         ],
     ).unwrap();
+    conn.execute(
+        "INSERT INTO quota_snapshots (
+            id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
+            request_count, token_count, message_count, source_id, source_page, confidence, read_ok, error_reason
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        rusqlite::params![
+            "snap-response-1",
+            "child-yellow-1",
+            "2026-04-03T09:00:01+08:00",
+            18.0_f64,
+            84.0_f64,
+            12_i64,
+            3456_i64,
+            8_i64,
+            "codex-web",
+            "/codex",
+            0.88_f64,
+            1_i64,
+            Option::<String>::None,
+        ],
+    ).unwrap();
 
     let response = app
         .oneshot(
@@ -192,7 +236,7 @@ async fn responses_uses_best_active_pool_member_headers() {
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "yellow");
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow]: ping");
+    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow] source=codex-web page=/codex: ping");
 }
 
 #[tokio::test]
@@ -318,6 +362,7 @@ async fn codex_quota_collect_parses_and_persists_snapshot() {
     assert_eq!(payload["data"]["request_count"], 12);
     assert_eq!(payload["data"]["token_count"], 3456);
     assert_eq!(payload["data"]["message_count"], 8);
+    assert_eq!(payload["data"]["source_id"], "codex-app");
     assert_eq!(payload["data"]["read_ok"], true);
 
     let conn = rusqlite::Connection::open(db_path).unwrap();

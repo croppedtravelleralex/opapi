@@ -48,7 +48,7 @@ pub async fn create_chat_completion(
         .map(|m| m.content.clone())
         .unwrap_or_default();
 
-    let executor = CodexExecutor::new();
+    let executor = CodexExecutor::new(state.config.sqlite_path.clone());
     let result = executor
         .execute_chat(&member, &payload.model, &user_text)
         .await

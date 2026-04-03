@@ -36,7 +36,7 @@ pub async fn create_response(
         .map_err(|_| AppError::Internal)?
         .ok_or(AppError::NoHealthyPoolMember)?;
 
-    let executor = CodexExecutor::new();
+    let executor = CodexExecutor::new(state.config.sqlite_path.clone());
     let result = executor
         .execute_response(&member, &payload.model, &payload.input)
         .await

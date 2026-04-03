@@ -123,6 +123,7 @@ impl SqliteModelRepository {
                 request_count INTEGER,
                 token_count INTEGER,
                 message_count INTEGER,
+                source_id TEXT,
                 source_page TEXT,
                 confidence REAL,
                 read_ok INTEGER NOT NULL DEFAULT 1,
