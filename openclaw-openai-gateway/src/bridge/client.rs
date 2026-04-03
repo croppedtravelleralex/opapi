@@ -85,13 +85,22 @@ impl OpenClawWsClient {
         &self,
         model: &str,
         user_text: &str,
+        session_namespace: &str,
+        session_key_hint: &str,
+        freshness_seconds: Option<i64>,
     ) -> Result<Value, String> {
         if !self.check_ready().await {
             return Err("upstream unavailable".into());
         }
 
         let bridge_request = BridgeRequest {
-            upstream_payload: map_codex_app_chat_request(model, user_text),
+            upstream_payload: map_codex_app_chat_request(
+                model,
+                user_text,
+                session_namespace,
+                session_key_hint,
+                freshness_seconds,
+            ),
         };
         let assistant_text = bridge_request
             .upstream_payload
@@ -113,13 +122,22 @@ impl OpenClawWsClient {
         &self,
         model: &str,
         input: &str,
+        session_namespace: &str,
+        session_key_hint: &str,
+        freshness_seconds: Option<i64>,
     ) -> Result<Value, String> {
         if !self.check_ready().await {
             return Err("upstream unavailable".into());
         }
 
         let bridge_request = BridgeRequest {
-            upstream_payload: map_codex_app_response_request(model, input),
+            upstream_payload: map_codex_app_response_request(
+                model,
+                input,
+                session_namespace,
+                session_key_hint,
+                freshness_seconds,
+            ),
         };
         let output_text = bridge_request
             .upstream_payload

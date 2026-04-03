@@ -38,8 +38,16 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let payload = client.proxy_codex_app_chat(model, user_text).await?;
         let handshake = build_handshake_meta(ctx);
+        let payload = client
+            .proxy_codex_app_chat(
+                model,
+                user_text,
+                &handshake.session_namespace,
+                &handshake.session_key_hint,
+                handshake.freshness_seconds,
+            )
+            .await?;
         extract_chat_text(&payload).map(|text| {
             format!(
                 "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} via openclaw-ws output={}",
@@ -68,8 +76,16 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let payload = client.proxy_codex_app_response(model, input).await?;
         let handshake = build_handshake_meta(ctx);
+        let payload = client
+            .proxy_codex_app_response(
+                model,
+                input,
+                &handshake.session_namespace,
+                &handshake.session_key_hint,
+                handshake.freshness_seconds,
+            )
+            .await?;
         extract_response_text(&payload).map(|text| {
             format!(
                 "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} via openclaw-ws output={}",

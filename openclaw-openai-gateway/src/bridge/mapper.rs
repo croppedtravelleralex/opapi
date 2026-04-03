@@ -15,11 +15,22 @@ pub fn map_chat_request(model: &str, user_text: &str) -> Value {
     })
 }
 
-pub fn map_codex_app_chat_request(model: &str, user_text: &str) -> Value {
+pub fn map_codex_app_chat_request(
+    model: &str,
+    user_text: &str,
+    session_namespace: &str,
+    session_key_hint: &str,
+    freshness_seconds: Option<i64>,
+) -> Value {
     json!({
         "type": "codex.app.chat.create",
         "model": model,
         "source": "codex-app",
+        "handshake": {
+            "session_namespace": session_namespace,
+            "session_key_hint": session_key_hint,
+            "freshness_seconds": freshness_seconds
+        },
         "input": {
             "messages": [
                 {
@@ -56,11 +67,22 @@ pub fn map_response_request(model: &str, input: &str) -> Value {
     })
 }
 
-pub fn map_codex_app_response_request(model: &str, input: &str) -> Value {
+pub fn map_codex_app_response_request(
+    model: &str,
+    input: &str,
+    session_namespace: &str,
+    session_key_hint: &str,
+    freshness_seconds: Option<i64>,
+) -> Value {
     json!({
         "type": "codex.app.response.create",
         "model": model,
         "source": "codex-app",
+        "handshake": {
+            "session_namespace": session_namespace,
+            "session_key_hint": session_key_hint,
+            "freshness_seconds": freshness_seconds
+        },
         "input": input
     })
 }
