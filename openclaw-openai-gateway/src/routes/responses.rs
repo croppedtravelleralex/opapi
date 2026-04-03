@@ -39,6 +39,7 @@ pub async fn create_response(
     let executor = CodexExecutor::new(
         state.config.sqlite_path.clone(),
         state.config.codex_session_bridge_mode.clone(),
+        Some(state.ws_client.clone()),
     );
     let result = executor
         .execute_response(&member, &payload.model, &payload.input)

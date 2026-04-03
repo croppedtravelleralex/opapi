@@ -3,17 +3,28 @@ use crate::codex::{
     session_bridge::CodexSessionBridge,
     source_context::SourceContextRepository,
 };
+use crate::bridge::client::OpenClawWsClient;
 use serde_json::{json, Value};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct CodexExecutor {
     dsn: String,
     session_bridge_mode: String,
+    ws_client: Option<Arc<OpenClawWsClient>>,
 }
 
 impl CodexExecutor {
-    pub fn new(dsn: String, session_bridge_mode: String) -> Self {
-        Self { dsn, session_bridge_mode }
+    pub fn new(
+        dsn: String,
+        session_bridge_mode: String,
+        ws_client: Option<Arc<OpenClawWsClient>>,
+    ) -> Self {
+        Self {
+            dsn,
+            session_bridge_mode,
+            ws_client,
+        }
     }
 
     pub async fn execute_chat(
@@ -24,7 +35,10 @@ impl CodexExecutor {
     ) -> Result<Value, String> {
         let ctx = SourceContextRepository::new(self.dsn.clone())
             .latest_for_child(&member.child_account_id)?;
-        let bridge = CodexSessionBridge::new(self.session_bridge_mode.clone());
+        let bridge = CodexSessionBridge::new(
+            self.session_bridge_mode.clone(),
+            self.ws_client.clone(),
+        );
         let bridged = bridge
             .run_chat(&ctx.source_id, &ctx.source_page, model, user_text)
             .await?;
@@ -59,7 +73,10 @@ impl CodexExecutor {
     ) -> Result<Value, String> {
         let ctx = SourceContextRepository::new(self.dsn.clone())
             .latest_for_child(&member.child_account_id)?;
-        let bridge = CodexSessionBridge::new(self.session_bridge_mode.clone());
+        let bridge = CodexSessionBridge::new(
+            self.session_bridge_mode.clone(),
+            self.ws_client.clone(),
+        );
         let bridged = bridge
             .run_response(&ctx.source_id, &ctx.source_page, model, input)
             .await?;

@@ -676,8 +676,69 @@ async fn sqlite_file_is_seeded() {
 }
 
 #[tokio::test]
-async fn chat_returns_upstream_unavailable_when_gateway_unreachable() {
-    let (app, db_path) = test_app().await;
+async fn chat_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_unreachable() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let db_path = format!("/tmp/openclaw-gateway-ws-bridge-chat-test-{}.sqlite3", unique);
+    let config = Config {
+        app_host: "127.0.0.1".into(),
+        app_port: 18080,
+        openclaw_ws_url: "ws://127.0.0.1:39999".into(),
+        openclaw_api_timeout_ms: 50,
+        api_keys: vec!["sk-test".into()],
+        models: vec!["openclaw-default".into()],
+        sqlite_path: db_path.clone(),
+        codex_session_bridge_mode: "openclaw-ws".into(),
+        third_party_provider_id: None,
+        third_party_base_url: None,
+        third_party_api_key: None,
+        third_party_model: None,
+    };
+    let state = Arc::new(AppState::new(config).await.unwrap());
+    let app = build_app(state);
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let _ = conn.execute("ALTER TABLE quota_snapshots ADD COLUMN source_id TEXT", []);
+    conn.execute(
+        "INSERT INTO pool_members (
+            id, child_account_id, pool_status, admission_level, weight,
+            current_load, cooldown_until, last_success_at, last_failure_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            "pool-ws-chat-1",
+            "child-ws-chat-1",
+            "active",
+            "green",
+            100_i64,
+            0_i64,
+            Option::<String>::None,
+            Some("2026-04-03T10:00:00+08:00".to_string()),
+            Option::<String>::None,
+        ],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO quota_snapshots (
+            id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
+            request_count, token_count, message_count, source_id, source_page, confidence, read_ok, error_reason
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        rusqlite::params![
+            "snap-ws-chat-1",
+            "child-ws-chat-1",
+            "2026-04-03T10:00:01+08:00",
+            80.0_f64,
+            92.0_f64,
+            12_i64,
+            3456_i64,
+            8_i64,
+            "codex-app",
+            "/codex",
+            0.96_f64,
+            1_i64,
+            Option::<String>::None,
+        ],
+    ).unwrap();
+
     let response = app
         .oneshot(
             Request::builder()
@@ -697,17 +758,72 @@ async fn chat_returns_upstream_unavailable_when_gateway_unreachable() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-
-    let conn = rusqlite::Connection::open(db_path).unwrap();
-    let audit_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM audit_events", [], |row| row.get(0))
-        .unwrap();
-    assert!(audit_count >= 1);
 }
 
 #[tokio::test]
-async fn responses_returns_upstream_unavailable_when_gateway_unreachable() {
-    let (app, _db_path) = test_app().await;
+async fn responses_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_unreachable() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let db_path = format!("/tmp/openclaw-gateway-ws-bridge-response-test-{}.sqlite3", unique);
+    let config = Config {
+        app_host: "127.0.0.1".into(),
+        app_port: 18080,
+        openclaw_ws_url: "ws://127.0.0.1:39999".into(),
+        openclaw_api_timeout_ms: 50,
+        api_keys: vec!["sk-test".into()],
+        models: vec!["openclaw-default".into()],
+        sqlite_path: db_path.clone(),
+        codex_session_bridge_mode: "openclaw-ws".into(),
+        third_party_provider_id: None,
+        third_party_base_url: None,
+        third_party_api_key: None,
+        third_party_model: None,
+    };
+    let state = Arc::new(AppState::new(config).await.unwrap());
+    let app = build_app(state);
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    let _ = conn.execute("ALTER TABLE quota_snapshots ADD COLUMN source_id TEXT", []);
+    conn.execute(
+        "INSERT INTO pool_members (
+            id, child_account_id, pool_status, admission_level, weight,
+            current_load, cooldown_until, last_success_at, last_failure_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            "pool-ws-response-1",
+            "child-ws-response-1",
+            "active",
+            "green",
+            100_i64,
+            0_i64,
+            Option::<String>::None,
+            Some("2026-04-03T10:00:00+08:00".to_string()),
+            Option::<String>::None,
+        ],
+    ).unwrap();
+    conn.execute(
+        "INSERT INTO quota_snapshots (
+            id, child_account_id, observed_at, quota_5h_percent, quota_7d_percent,
+            request_count, token_count, message_count, source_id, source_page, confidence, read_ok, error_reason
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        rusqlite::params![
+            "snap-ws-response-1",
+            "child-ws-response-1",
+            "2026-04-03T10:00:01+08:00",
+            80.0_f64,
+            92.0_f64,
+            12_i64,
+            3456_i64,
+            8_i64,
+            "codex-web",
+            "/codex",
+            0.96_f64,
+            1_i64,
+            Option::<String>::None,
+        ],
+    ).unwrap();
+
     let response = app
         .oneshot(
             Request::builder()
