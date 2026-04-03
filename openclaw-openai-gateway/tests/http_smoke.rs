@@ -112,9 +112,12 @@ async fn chat_uses_best_active_pool_member_headers() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers().get("x-pool-child-account-id").unwrap(), "child-green-1");
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "green");
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green]: ping");
 }
 
 #[tokio::test]
@@ -184,9 +187,12 @@ async fn responses_uses_best_active_pool_member_headers() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers().get("x-pool-child-account-id").unwrap(), "child-yellow-1");
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "yellow");
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow]: ping");
 }
 
 #[tokio::test]
