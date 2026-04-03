@@ -1,5 +1,12 @@
 use crate::bridge::{
-    mapper::{map_chat_request, map_chat_response, map_response_output, map_response_request},
+    mapper::{
+        map_chat_request,
+        map_chat_response,
+        map_codex_app_chat_request,
+        map_codex_app_response_request,
+        map_response_output,
+        map_response_request,
+    },
     types::{BridgeRequest, BridgeResponse},
 };
 use serde_json::Value;
@@ -67,6 +74,59 @@ impl OpenClawWsClient {
             .and_then(|v| v.as_str())
             .map(|text| format!("proxy mapped: {}", text))
             .unwrap_or_else(|| "proxy mapped: empty".into());
+        let bridge_response = BridgeResponse {
+            upstream_payload: map_response_output(model, &output_text),
+        };
+
+        Ok(bridge_response.upstream_payload)
+    }
+
+    pub async fn proxy_codex_app_chat(
+        &self,
+        model: &str,
+        user_text: &str,
+    ) -> Result<Value, String> {
+        if !self.check_ready().await {
+            return Err("upstream unavailable".into());
+        }
+
+        let bridge_request = BridgeRequest {
+            upstream_payload: map_codex_app_chat_request(model, user_text),
+        };
+        let assistant_text = bridge_request
+            .upstream_payload
+            .get("input")
+            .and_then(|v| v.get("messages"))
+            .and_then(|v| v.get(0))
+            .and_then(|v| v.get("content"))
+            .and_then(|v| v.as_str())
+            .map(|text| format!("codex-app proxy mapped: {}", text))
+            .unwrap_or_else(|| "codex-app proxy mapped: empty".into());
+        let bridge_response = BridgeResponse {
+            upstream_payload: map_chat_response(model, &assistant_text),
+        };
+
+        Ok(bridge_response.upstream_payload)
+    }
+
+    pub async fn proxy_codex_app_response(
+        &self,
+        model: &str,
+        input: &str,
+    ) -> Result<Value, String> {
+        if !self.check_ready().await {
+            return Err("upstream unavailable".into());
+        }
+
+        let bridge_request = BridgeRequest {
+            upstream_payload: map_codex_app_response_request(model, input),
+        };
+        let output_text = bridge_request
+            .upstream_payload
+            .get("input")
+            .and_then(|v| v.as_str())
+            .map(|text| format!("codex-app proxy mapped: {}", text))
+            .unwrap_or_else(|| "codex-app proxy mapped: empty".into());
         let bridge_response = BridgeResponse {
             upstream_payload: map_response_output(model, &output_text),
         };

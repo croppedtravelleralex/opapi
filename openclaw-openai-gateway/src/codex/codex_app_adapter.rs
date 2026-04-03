@@ -21,7 +21,7 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let payload = client.proxy_chat(model, user_text).await?;
+        let payload = client.proxy_codex_app_chat(model, user_text).await?;
         extract_chat_text(&payload)
             .map(|text| format!("codex-app-adapter via openclaw-ws output={}", text))
     }
@@ -35,7 +35,7 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let payload = client.proxy_response(model, input).await?;
+        let payload = client.proxy_codex_app_response(model, input).await?;
         extract_response_text(&payload)
             .map(|text| format!("codex-app-adapter via openclaw-ws output={}", text))
     }

@@ -15,6 +15,22 @@ pub fn map_chat_request(model: &str, user_text: &str) -> Value {
     })
 }
 
+pub fn map_codex_app_chat_request(model: &str, user_text: &str) -> Value {
+    json!({
+        "type": "codex.app.chat.create",
+        "model": model,
+        "source": "codex-app",
+        "input": {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": user_text
+                }
+            ]
+        }
+    })
+}
+
 pub fn map_chat_response(model: &str, assistant_text: &str) -> Value {
     json!({
         "id": format!("chatcmpl-proxy-{}", chrono::Utc::now().timestamp_millis()),
@@ -36,6 +52,15 @@ pub fn map_response_request(model: &str, input: &str) -> Value {
     json!({
         "type": "response.create",
         "model": model,
+        "input": input
+    })
+}
+
+pub fn map_codex_app_response_request(model: &str, input: &str) -> Value {
+    json!({
+        "type": "codex.app.response.create",
+        "model": model,
+        "source": "codex-app",
         "input": input
     })
 }

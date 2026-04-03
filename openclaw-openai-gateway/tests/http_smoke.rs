@@ -145,7 +145,7 @@ async fn chat_uses_best_active_pool_member_headers() {
 }
 
 #[tokio::test]
-async fn chat_returns_no_healthy_pool_member_when_pool_empty() {
+async fn chat_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_unreachable() {
     let (app, _db_path) = test_app().await;
     let response = app
         .oneshot(
@@ -671,7 +671,7 @@ async fn sqlite_file_is_seeded() {
 }
 
 #[tokio::test]
-async fn chat_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_unreachable() {
+async fn chat_returns_no_healthy_pool_member_when_pool_empty() {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
