@@ -1,4 +1,7 @@
-use crate::{bridge::client::OpenClawWsClient, codex::codex_app_adapter::CodexAppAdapter};
+use crate::{
+    bridge::client::OpenClawWsClient,
+    codex::codex_app_adapter::{CodexAppAdapter, CodexAppRequestContext},
+};
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -21,30 +24,56 @@ impl CodexSessionBridge {
 
     pub async fn run_chat(
         &self,
+        child_account_id: &str,
         source_id: &str,
         source_page: &str,
+        observed_at: &str,
         model: &str,
         user_text: &str,
     ) -> Result<String, String> {
         let adapter = resolve_source_adapter(source_id)?;
         match self.mode.as_str() {
             "mock" => self.mock_chat(adapter, source_id, source_page, user_text).await,
-            "openclaw-ws" => self.openclaw_ws_chat(adapter, source_id, source_page, model, user_text).await,
+            "openclaw-ws" => {
+                self.openclaw_ws_chat(
+                    adapter,
+                    child_account_id,
+                    source_id,
+                    source_page,
+                    observed_at,
+                    model,
+                    user_text,
+                )
+                .await
+            }
             other => Err(format!("unsupported_codex_session_bridge_mode:{}", other)),
         }
     }
 
     pub async fn run_response(
         &self,
+        child_account_id: &str,
         source_id: &str,
         source_page: &str,
+        observed_at: &str,
         model: &str,
         input: &str,
     ) -> Result<String, String> {
         let adapter = resolve_source_adapter(source_id)?;
         match self.mode.as_str() {
             "mock" => self.mock_response(adapter, source_id, source_page, input).await,
-            "openclaw-ws" => self.openclaw_ws_response(adapter, source_id, source_page, model, input).await,
+            "openclaw-ws" => {
+                self.openclaw_ws_response(
+                    adapter,
+                    child_account_id,
+                    source_id,
+                    source_page,
+                    observed_at,
+                    model,
+                    input,
+                )
+                .await
+            }
             other => Err(format!("unsupported_codex_session_bridge_mode:{}", other)),
         }
     }
@@ -84,17 +113,23 @@ impl CodexSessionBridge {
     async fn openclaw_ws_chat(
         &self,
         adapter: CodexSourceAdapter,
+        child_account_id: &str,
         source_id: &str,
         source_page: &str,
+        observed_at: &str,
         model: &str,
         user_text: &str,
     ) -> Result<String, String> {
         match adapter {
             CodexSourceAdapter::App => {
                 let app = CodexAppAdapter::new(self.ws_client.clone());
-                app.run_chat_via_ws(model, user_text)
-                    .await
-                    .map(|text| format!("source={} page={} {}", source_id, source_page, text))
+                let ctx = CodexAppRequestContext {
+                    child_account_id: child_account_id.to_string(),
+                    source_id: source_id.to_string(),
+                    source_page: source_page.to_string(),
+                    observed_at: observed_at.to_string(),
+                };
+                app.run_chat_via_ws(&ctx, model, user_text).await
             }
             CodexSourceAdapter::Web => {
                 let client = self
@@ -118,17 +153,23 @@ impl CodexSessionBridge {
     async fn openclaw_ws_response(
         &self,
         adapter: CodexSourceAdapter,
+        child_account_id: &str,
         source_id: &str,
         source_page: &str,
+        observed_at: &str,
         model: &str,
         input: &str,
     ) -> Result<String, String> {
         match adapter {
             CodexSourceAdapter::App => {
                 let app = CodexAppAdapter::new(self.ws_client.clone());
-                app.run_response_via_ws(model, input)
-                    .await
-                    .map(|text| format!("source={} page={} {}", source_id, source_page, text))
+                let ctx = CodexAppRequestContext {
+                    child_account_id: child_account_id.to_string(),
+                    source_id: source_id.to_string(),
+                    source_page: source_page.to_string(),
+                    observed_at: observed_at.to_string(),
+                };
+                app.run_response_via_ws(&ctx, model, input).await
             }
             CodexSourceAdapter::Web => {
                 let client = self

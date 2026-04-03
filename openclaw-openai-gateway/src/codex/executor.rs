@@ -40,7 +40,14 @@ impl CodexExecutor {
             self.ws_client.clone(),
         );
         let bridged = bridge
-            .run_chat(&ctx.source_id, &ctx.source_page, model, user_text)
+            .run_chat(
+                &member.child_account_id,
+                &ctx.source_id,
+                &ctx.source_page,
+                &ctx.observed_at,
+                model,
+                user_text,
+            )
             .await?;
         Ok(json!({
             "id": format!("chatcmpl-codex-{}", chrono::Utc::now().timestamp_millis()),
@@ -78,7 +85,14 @@ impl CodexExecutor {
             self.ws_client.clone(),
         );
         let bridged = bridge
-            .run_response(&ctx.source_id, &ctx.source_page, model, input)
+            .run_response(
+                &member.child_account_id,
+                &ctx.source_id,
+                &ctx.source_page,
+                &ctx.observed_at,
+                model,
+                input,
+            )
             .await?;
         Ok(json!({
             "id": format!("resp-codex-{}", chrono::Utc::now().timestamp_millis()),
