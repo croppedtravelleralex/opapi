@@ -1,5 +1,6 @@
 pub mod admission;
 pub mod codex_app_adapter;
+pub mod codex_app_session_source;
 pub mod collector;
 pub mod executor;
 pub mod parser;

@@ -1,5 +1,5 @@
 use crate::bridge::client::OpenClawWsClient;
-use chrono::{DateTime, Utc};
+use crate::codex::codex_app_session_source::CodexAppSessionSource;
 use serde_json::Value;
 use std::sync::Arc;
 
@@ -38,7 +38,7 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let handshake = build_handshake_meta(ctx);
+        let handshake = CodexAppSessionSource::from_env().resolve(ctx);
         let payload = client
             .proxy_codex_app_chat(
                 model,
@@ -76,7 +76,7 @@ impl CodexAppAdapter {
             .ws_client
             .as_ref()
             .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
-        let handshake = build_handshake_meta(ctx);
+        let handshake = CodexAppSessionSource::from_env().resolve(ctx);
         let payload = client
             .proxy_codex_app_response(
                 model,
@@ -102,19 +102,6 @@ impl CodexAppAdapter {
                 text
             )
         })
-    }
-}
-
-fn build_handshake_meta(ctx: &CodexAppRequestContext) -> CodexAppHandshakeMeta {
-    let freshness_seconds = DateTime::parse_from_rfc3339(&ctx.observed_at)
-        .ok()
-        .map(|dt| Utc::now().signed_duration_since(dt.with_timezone(&Utc)).num_seconds())
-        .filter(|v| *v >= 0);
-
-    CodexAppHandshakeMeta {
-        session_namespace: format!("codex-app:{}", ctx.child_account_id),
-        session_key_hint: format!("{}:{}:{}", ctx.child_account_id, ctx.source_id, ctx.source_page),
-        freshness_seconds,
     }
 }
 
