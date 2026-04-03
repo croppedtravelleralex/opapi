@@ -107,18 +107,40 @@ fn extract_session_input(input: &CodexQuotaPageInput) -> CodexAppSessionInput {
         session_namespace: extract_session_value(
             &input.page_text,
             input.page_html.as_deref(),
-            &["session namespace", "session_namespace", "session-namespace"],
+            &[
+                "session namespace",
+                "session_namespace",
+                "session-namespace",
+                "data-session-namespace",
+                "sessionNamespace",
+            ],
         ),
         session_key_hint: extract_session_value(
             &input.page_text,
             input.page_html.as_deref(),
-            &["session key hint", "session_key_hint", "session-key-hint"],
+            &[
+                "session key hint",
+                "session_key_hint",
+                "session-key-hint",
+                "data-session-key-hint",
+                "sessionKeyHint",
+            ],
         ),
     }
 }
 
 fn extract_session_value(text: &str, html: Option<&str>, anchors: &[&str]) -> Option<String> {
+    if let Some(raw_html) = html {
+        for anchor in anchors {
+            if let Some(value) = extract_structured_value(raw_html, anchor) {
+                return Some(value);
+            }
+        }
+    }
     for anchor in anchors {
+        if let Some(value) = extract_structured_value(text, anchor) {
+            return Some(value);
+        }
         if let Some(value) = extract_value_after_anchor(text, anchor) {
             return Some(value);
         }
@@ -131,6 +153,37 @@ fn extract_session_value(text: &str, html: Option<&str>, anchors: &[&str]) -> Op
     None
 }
 
+fn extract_structured_value(content: &str, anchor: &str) -> Option<String> {
+    let patterns = [
+        format!("{}=\"", anchor),
+        format!("{}='", anchor),
+        format!("\"{}\":\"", anchor),
+        format!("\"{}\": \"", anchor),
+        format!("'{}':'", anchor),
+        format!("'{}': '", anchor),
+    ];
+
+    for pattern in patterns {
+        if let Some(value) = extract_between(content, &pattern) {
+            return Some(value);
+        }
+    }
+    None
+}
+
+fn extract_between(content: &str, pattern: &str) -> Option<String> {
+    let start = content.find(pattern)? + pattern.len();
+    let tail = &content[start..content.len().min(start + 200)];
+    let quote = pattern.chars().last()?;
+    let end = tail.find(quote)?;
+    let value = tail[..end].trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
 fn extract_value_after_anchor(content: &str, anchor: &str) -> Option<String> {
     let lower = content.to_lowercase();
     let anchor_lower = anchor.to_lowercase();
@@ -140,7 +193,7 @@ fn extract_value_after_anchor(content: &str, anchor: &str) -> Option<String> {
         .trim_start_matches(|ch: char| ch.is_whitespace() || matches!(ch, ':' | '=' | '"' | '\'' | '>'));
     let value: String = cleaned
         .chars()
-        .take_while(|ch| !ch.is_whitespace() && !matches!(ch, '<' | '"' | '\'' | ',' | ';'))
+        .take_while(|ch| !ch.is_whitespace() && !matches!(ch, '<' | '"' | '\'' | ',' | ';' | '}'))
         .collect();
     if value.is_empty() {
         None
