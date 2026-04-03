@@ -29,6 +29,77 @@ async fn test_app() -> (axum::Router, String) {
 }
 
 #[tokio::test]
+async fn codex_quota_collect_parses_and_persists_snapshot() {
+    let (app, db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-app-1",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "5h 78% 7d 91% requests 12 tokens 3456 messages 8"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["data"]["child_account_id"], "child-app-1");
+    assert_eq!(payload["data"]["quota_5h_percent"], 78.0);
+    assert_eq!(payload["data"]["quota_7d_percent"], 91.0);
+    assert_eq!(payload["data"]["request_count"], 12);
+    assert_eq!(payload["data"]["token_count"], 3456);
+    assert_eq!(payload["data"]["message_count"], 8);
+    assert_eq!(payload["data"]["read_ok"], true);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM quota_snapshots WHERE child_account_id = 'child-app-1'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+}
+
+#[tokio::test]
+async fn codex_quota_collect_marks_failure_when_no_signals_found() {
+    let (app, _db_path) = test_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/quota/collect")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "child_account_id": "child-app-2",
+                        "source_id": "codex-app",
+                        "source_page": "/codex",
+                        "page_text": "hello nothing useful here"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["data"]["read_ok"], false);
+    assert_eq!(payload["data"]["error_reason"], "quota_signals_not_found");
+}
+
+#[tokio::test]
 async fn codex_quota_sources_returns_app_and_web_sources() {
     let (app, _db_path) = test_app().await;
     let response = app

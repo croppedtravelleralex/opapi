@@ -1,9 +1,10 @@
 use crate::{
+    codex::collector::CodexQuotaCollector,
     domain::codex_quota_source::{default_codex_quota_sources, CodexQuotaSource},
     state::AppState,
 };
 use axum::{extract::State, Json};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -36,6 +37,53 @@ pub struct CodexQuotaOverview {
 #[derive(Serialize)]
 pub struct CodexQuotaOverviewResponse {
     pub data: CodexQuotaOverview,
+}
+
+#[derive(Deserialize)]
+pub struct CollectCodexQuotaRequest {
+    pub child_account_id: String,
+    pub source_id: String,
+    pub source_page: String,
+    pub page_text: String,
+    pub page_html: Option<String>,
+    pub snapshot_ref: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct CollectCodexQuotaResponse {
+    pub data: crate::domain::quota_snapshot::QuotaSnapshot,
+}
+
+pub async fn collect_codex_quota(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CollectCodexQuotaRequest>,
+) -> Json<CollectCodexQuotaResponse> {
+    let collector = CodexQuotaCollector::new(state.config.sqlite_path.clone());
+    let snapshot = collector
+        .collect_from_page_text(crate::codex::parser::CodexQuotaPageInput {
+            child_account_id: payload.child_account_id,
+            source_id: payload.source_id,
+            source_page: payload.source_page,
+            page_text: payload.page_text,
+            page_html: payload.page_html,
+            snapshot_ref: payload.snapshot_ref,
+        })
+        .unwrap_or_else(|error_reason| crate::domain::quota_snapshot::QuotaSnapshot {
+            id: "quota-collect-failed".into(),
+            child_account_id: "unknown".into(),
+            observed_at: chrono::Utc::now().to_rfc3339(),
+            quota_5h_percent: None,
+            quota_7d_percent: None,
+            request_count: None,
+            token_count: None,
+            message_count: None,
+            source_page: Some("/codex".into()),
+            confidence: Some(0.0),
+            read_ok: false,
+            error_reason: Some(error_reason),
+        });
+
+    Json(CollectCodexQuotaResponse { data: snapshot })
 }
 
 pub async fn list_codex_quota_sources(

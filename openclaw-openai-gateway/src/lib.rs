@@ -1,5 +1,6 @@
 pub mod app;
 pub mod bridge;
+pub mod codex;
 pub mod config;
 pub mod domain;
 pub mod error;

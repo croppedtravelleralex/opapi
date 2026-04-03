@@ -1,5 +1,6 @@
 mod app;
 mod bridge;
+mod codex;
 mod config;
 mod domain;
 mod error;
