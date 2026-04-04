@@ -124,12 +124,28 @@ impl CodexSessionBridge {
         match adapter {
             CodexSourceAdapter::App => {
                 let app = CodexAppAdapter::new(self.dsn.clone(), self.ws_client.clone());
-                let ctx = build_codex_app_request_context(
+                let mut ctx = build_codex_app_request_context(
                     child_account_id,
                     source_id,
                     source_page,
                     observed_at,
                 );
+                if let Some(client) = self.ws_client.as_ref() {
+                    let payload = client
+                        .proxy_codex_app_chat(
+                            model,
+                            user_text,
+                            ctx.runtime_session_namespace
+                                .as_deref()
+                                .unwrap_or("codex-app-runtime-pending"),
+                            ctx.runtime_session_key_hint
+                                .as_deref()
+                                .unwrap_or("codex-app-runtime-pending"),
+                            None,
+                        )
+                        .await?;
+                    apply_runtime_hints_from_payload(&mut ctx, &payload);
+                }
                 app.run_chat_via_ws(&ctx, model, user_text).await
             }
             CodexSourceAdapter::Web => {
@@ -164,12 +180,28 @@ impl CodexSessionBridge {
         match adapter {
             CodexSourceAdapter::App => {
                 let app = CodexAppAdapter::new(self.dsn.clone(), self.ws_client.clone());
-                let ctx = build_codex_app_request_context(
+                let mut ctx = build_codex_app_request_context(
                     child_account_id,
                     source_id,
                     source_page,
                     observed_at,
                 );
+                if let Some(client) = self.ws_client.as_ref() {
+                    let payload = client
+                        .proxy_codex_app_response(
+                            model,
+                            input,
+                            ctx.runtime_session_namespace
+                                .as_deref()
+                                .unwrap_or("codex-app-runtime-pending"),
+                            ctx.runtime_session_key_hint
+                                .as_deref()
+                                .unwrap_or("codex-app-runtime-pending"),
+                            None,
+                        )
+                        .await?;
+                    apply_runtime_hints_from_payload(&mut ctx, &payload);
+                }
                 app.run_response_via_ws(&ctx, model, input).await
             }
             CodexSourceAdapter::Web => {
@@ -214,6 +246,67 @@ fn build_codex_app_request_context(
             source_id,
         ),
     }
+}
+
+fn apply_runtime_hints_from_payload(ctx: &mut CodexAppRequestContext, payload: &Value) {
+    if ctx.runtime_session_namespace.is_none() {
+        ctx.runtime_session_namespace = find_runtime_hint(payload, "session_namespace");
+    }
+    if ctx.runtime_session_key_hint.is_none() {
+        ctx.runtime_session_key_hint = find_runtime_hint(payload, "session_key_hint");
+    }
+}
+
+fn find_runtime_hint(payload: &Value, field: &str) -> Option<String> {
+    payload
+        .get("runtime")
+        .and_then(|v| v.get(field))
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            payload
+                .get("handshake")
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("choices")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.get("runtime"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("choices")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.get("handshake"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("output")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("content"))
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("runtime"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("output")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("content"))
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("handshake"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .map(|v| v.to_string())
 }
 
 fn resolve_runtime_session_env(prefix: &str, child_account_id: &str, source_id: &str) -> Option<String> {
@@ -316,5 +409,55 @@ mod tests {
             env::remove_var("CODEX_APP_RUNTIME_SESSION_NAMESPACE");
             env::remove_var("CODEX_APP_RUNTIME_SESSION_KEY_HINT");
         }
+    }
+
+    #[test]
+    fn apply_runtime_hints_from_payload_accepts_top_level_handshake() {
+        let mut ctx = CodexAppRequestContext {
+            child_account_id: "child-3".into(),
+            source_id: "codex-app".into(),
+            source_page: "/codex".into(),
+            observed_at: "2026-04-03T12:00:00+08:00".into(),
+            runtime_session_namespace: None,
+            runtime_session_key_hint: None,
+        };
+
+        let payload = serde_json::json!({
+            "handshake": {
+                "session_namespace": "handshake-ns",
+                "session_key_hint": "handshake-key"
+            }
+        });
+
+        apply_runtime_hints_from_payload(&mut ctx, &payload);
+        assert_eq!(ctx.runtime_session_namespace.as_deref(), Some("handshake-ns"));
+        assert_eq!(ctx.runtime_session_key_hint.as_deref(), Some("handshake-key"));
+    }
+
+    #[test]
+    fn apply_runtime_hints_from_payload_accepts_nested_response_handshake() {
+        let mut ctx = CodexAppRequestContext {
+            child_account_id: "child-4".into(),
+            source_id: "codex-app".into(),
+            source_page: "/codex".into(),
+            observed_at: "2026-04-03T12:00:00+08:00".into(),
+            runtime_session_namespace: None,
+            runtime_session_key_hint: None,
+        };
+
+        let payload = serde_json::json!({
+            "output": [{
+                "content": [{
+                    "handshake": {
+                        "session_namespace": "nested-ns",
+                        "session_key_hint": "nested-key"
+                    }
+                }]
+            }]
+        });
+
+        apply_runtime_hints_from_payload(&mut ctx, &payload);
+        assert_eq!(ctx.runtime_session_namespace.as_deref(), Some("nested-ns"));
+        assert_eq!(ctx.runtime_session_key_hint.as_deref(), Some("nested-key"));
     }
 }
