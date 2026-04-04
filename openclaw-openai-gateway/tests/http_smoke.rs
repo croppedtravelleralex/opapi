@@ -16,6 +16,7 @@ async fn test_app() -> (axum::Router, String) {
         app_port: 18080,
         openclaw_ws_url: "ws://127.0.0.1:39999".into(),
         openclaw_api_timeout_ms: 50,
+        openclaw_ws_transport_mode: openclaw_openai_gateway::bridge::client::OpenClawWsTransportMode::Mock,
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
@@ -141,7 +142,7 @@ async fn chat_uses_best_active_pool_member_headers() {
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "green");
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green] source=codex-app page=/codex: mock-session-bridge adapter=codex-app source=codex-app page=/codex input=ping");
+    assert_eq!(payload["choices"][0]["message"]["content"], "codex routed via child-green-1 [green] pool_status=active weight=100 source_child=child-green-1 source=codex-app page=/codex: mock-session-bridge adapter=codex-app source=codex-app page=/codex input=ping");
 }
 
 #[tokio::test]
@@ -237,7 +238,7 @@ async fn responses_uses_best_active_pool_member_headers() {
     assert_eq!(response.headers().get("x-pool-admission-level").unwrap(), "yellow");
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow] source=codex-web page=/codex: mock-session-bridge adapter=codex-web source=codex-web page=/codex input=ping");
+    assert_eq!(payload["output"][0]["content"][0]["text"], "codex routed via child-yellow-1 [yellow] pool_status=active weight=30 source_child=child-yellow-1 source=codex-web page=/codex: mock-session-bridge adapter=codex-web source=codex-web page=/codex input=ping");
 }
 
 #[tokio::test]
@@ -672,6 +673,7 @@ async fn providers_do_not_import_third_party_provider_in_local_first_mode() {
         app_port: 18080,
         openclaw_ws_url: "ws://127.0.0.1:39999".into(),
         openclaw_api_timeout_ms: 50,
+        openclaw_ws_transport_mode: openclaw_openai_gateway::bridge::client::OpenClawWsTransportMode::Mock,
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
@@ -711,6 +713,7 @@ async fn routing_explain_uses_capability_and_availability() {
         app_port: 18080,
         openclaw_ws_url: "ws://127.0.0.1:39999".into(),
         openclaw_api_timeout_ms: 50,
+        openclaw_ws_transport_mode: openclaw_openai_gateway::bridge::client::OpenClawWsTransportMode::Mock,
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
@@ -798,6 +801,7 @@ async fn chat_returns_no_healthy_pool_member_when_pool_empty() {
         app_port: 18080,
         openclaw_ws_url: "ws://127.0.0.1:39999".into(),
         openclaw_api_timeout_ms: 50,
+        openclaw_ws_transport_mode: openclaw_openai_gateway::bridge::client::OpenClawWsTransportMode::Mock,
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
@@ -886,6 +890,7 @@ async fn responses_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_
         app_port: 18080,
         openclaw_ws_url: "ws://127.0.0.1:39999".into(),
         openclaw_api_timeout_ms: 50,
+        openclaw_ws_transport_mode: openclaw_openai_gateway::bridge::client::OpenClawWsTransportMode::Mock,
         api_keys: vec!["sk-test".into()],
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),

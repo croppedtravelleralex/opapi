@@ -60,9 +60,12 @@ impl CodexExecutor {
                 "message": {
                     "role": "assistant",
                     "content": format!(
-                        "codex routed via {} [{}] source={} page={}: {}",
+                        "codex routed via {} [{}] pool_status={} weight={} source_child={} source={} page={}: {}",
                         member.child_account_id,
                         member.admission_level,
+                        member.pool_status,
+                        member.weight,
+                        ctx.child_account_id,
                         ctx.source_id,
                         ctx.source_page,
                         bridged
@@ -107,9 +110,12 @@ impl CodexExecutor {
                 "content": [{
                     "type": "output_text",
                     "text": format!(
-                        "codex routed via {} [{}] source={} page={}: {}",
+                        "codex routed via {} [{}] pool_status={} weight={} source_child={} source={} page={}: {}",
                         member.child_account_id,
                         member.admission_level,
+                        member.pool_status,
+                        member.weight,
+                        ctx.child_account_id,
                         ctx.source_id,
                         ctx.source_page,
                         bridged

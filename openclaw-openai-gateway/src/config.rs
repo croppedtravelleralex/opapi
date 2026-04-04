@@ -1,3 +1,4 @@
+use crate::bridge::client::OpenClawWsTransportMode;
 use std::env;
 
 #[derive(Clone, Debug)]
@@ -6,13 +7,18 @@ pub struct Config {
     pub app_port: u16,
     pub openclaw_ws_url: String,
     pub openclaw_api_timeout_ms: u64,
+    pub openclaw_ws_transport_mode: OpenClawWsTransportMode,
     pub api_keys: Vec<String>,
     pub models: Vec<String>,
     pub sqlite_path: String,
     pub codex_session_bridge_mode: String,
+    #[allow(dead_code)]
     pub third_party_provider_id: Option<String>,
+    #[allow(dead_code)]
     pub third_party_base_url: Option<String>,
+    #[allow(dead_code)]
     pub third_party_api_key: Option<String>,
+    #[allow(dead_code)]
     pub third_party_model: Option<String>,
 }
 
@@ -53,6 +59,9 @@ impl Config {
             app_port,
             openclaw_ws_url,
             openclaw_api_timeout_ms,
+            openclaw_ws_transport_mode: OpenClawWsTransportMode::from_str(
+                &env::var("OPENCLAW_WS_TRANSPORT_MODE").unwrap_or_else(|_| "mock".into()),
+            ),
             api_keys,
             models,
             sqlite_path,

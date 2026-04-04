@@ -135,4 +135,24 @@ mod tests {
         .unwrap_err();
         assert!(err.starts_with("real_ws_upstream_error:"));
     }
+
+    #[test]
+    fn normalize_real_payload_keeps_nested_runtime_shape_for_followup_extractors() {
+        let parsed = normalize_real_payload(json!({
+            "upstream_payload": {
+                "output": [{
+                    "content": [{
+                        "handshake": {
+                            "session_namespace": "resp-ns",
+                            "session_key_hint": "resp-key"
+                        },
+                        "text": "ok"
+                    }]
+                }]
+            }
+        }))
+        .unwrap();
+        assert_eq!(parsed["output"][0]["content"][0]["handshake"]["session_namespace"], "resp-ns");
+        assert_eq!(parsed["output"][0]["content"][0]["handshake"]["session_key_hint"], "resp-key");
+    }
 }
