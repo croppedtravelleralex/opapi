@@ -29,9 +29,34 @@
 - `/v1/models` / `/v1/providers` 已切到 SQLite-backed reads
 - `provider_capabilities / model_availability` 已可建表并 seed
 - audit 已落 SQLite（`audit_events`）
-- 母号 / 子号 / 空间成员 / 邀请任务 / 额度快照 / 池成员 / 外部 API Key 的领域对象已落下
-- `parent_accounts / child_accounts / space_memberships / invite_tasks / quota_snapshots / pool_members / proxy_api_keys` 已加入 SQLite schema
-- smoke tests 已建立并通过（`9 passed / 0 failed`）
+- Codex quota 采集 / admission / pool member 持久化主链已跑通
+- Codex App session source 已支持 runtime / sqlite / default 多层来源
+- OpenClaw WS transport 已拆成 mock / real skeleton，并有 real ws roundtrip compatibility layer
+- 自动注册机 v1 已落下：
+  - `auto-register`
+  - `dispatch`
+  - `worker/run`
+  - `dead-letter/recover`
+- 注册状态机已具备：
+  - `register-account`
+  - `verify-email`
+  - `verify-invite`
+  - `accept-invite`
+  - `collect-quota`
+  - `warmup-pool`
+- 安全控制已具备：retry / backoff / lease / risk_score / dead-letter / recover
+- 邮箱池已具备：
+  - bulk import
+  - poll
+  - mailbox bindings
+  - poll runs
+  - quality_score
+  - expansion_tier
+  - reservation_count
+  - capacity events
+  - overview / expand / tiering
+- 自动化目标已具备：discover / try / attempt history / suggestion
+- smoke tests 已扩到通过（`17 + 17 + 32`）
 - 已完成新主线设计文档：
   - `VISION_QUOTA_PROXY.md`
   - `DESIGN_PARENT_CHILD_SPACE_MODEL.md`
@@ -44,22 +69,57 @@
 ---
 
 ## 当前主线
-1. 先做母号 / 子号 / 空间 / 邀请 / 额度快照 / 池成员 / API Key 数据模型
-2. 先做指纹浏览器 API 适配层
-3. 先做“邀请 → 登录 → 验证空间 → 入池”主链路
-4. 再做网页额度采集与入池/出池规则
-5. 最后做独立 Key 输出与反代分发
+1. 继续把自动注册机从骨架推进成可持续跑的 worker 系统
+2. 把邮箱池做成高质量、可扩张、自动治理的资源层
+3. 把 automation target discovery / try / mailbox / register 串成闭环
+4. 后续再接真实指纹浏览器 API
+5. 在此基础上继续稳定 Codex quota pool 与对外 OpenAI 兼容 API
 
 ---
 
 ## 当前阻塞
-1. 还没有母号 / 子号 / 空间 / 池成员的正式数据模型
-2. 还没有指纹浏览器 API 适配层
-3. 还没有网页额度采集器
-4. 还没有“子号入池 / 出池”状态机实现
-5. 还没有对外独立 Key 管理层
+1. 真实指纹浏览器 API 还没接，只做了未来入口占位和内部状态机
+2. 邮箱池虽然已能导入/轮询/分层，但压力均衡器、健康看板、自动恢复还没落下
+3. automation target 的 try 仍是启发式骨架，不是真实页面自动化
+4. OpenClaw 主机安全审计显示 **2 critical / 9 warn**，运行环境仍需整改
+5. 主机缺少显式防火墙层，且 `sshd:22` / `cupsd:631` 对外监听
 
 ---
+
+## 运行环境审查
+### 当前主机条件
+- OS：Ubuntu 24.04.4 LTS
+- 内核：6.8.0-101-generic
+- Rust：1.94.1
+- Cargo：1.94.1
+- Node：22.22.2
+- npm：10.9.7
+- Git：2.43.0
+- 磁盘：`/` 59G，总已用 39G，剩余 19G
+- 内存：3.6GiB，总可用约 1.7GiB
+- OpenClaw：2026.4.1，存在 2026.4.2 更新
+
+### 是否符合运行条件
+- **项目代码层面：基本符合**
+  - 能编译
+  - 测试全绿
+  - SQLite 本地运行正常
+- **主机环境层面：部分符合，但不够稳妥**
+  - 资源可跑，但内存余量偏紧
+  - 网络与服务可用
+  - 安全面不达标，必须整改
+
+### 需要整改
+1. 审查或下线被 `openclaw security audit --deep` 标红的插件：
+   - `adp-openclaw`
+   - `openclaw-weixin`
+2. 安装并启用主机防火墙（当前 `ufw` / `nft` 都缺失）
+3. 审查 `cupsd`，若不需要打印服务则关闭 631 对外监听
+4. 收紧 OpenClaw：
+   - `autoAllowSkills`
+   - `strictInlineEval`
+   - `trustedProxies`
+5. 升级 OpenClaw 到 2026.4.2
 
 ## 运行形态判断
 ### 该砍
@@ -68,7 +128,7 @@
 - 重前端运营后台
 
 ### 该加
-- CLI 互动入口
 - Worker / Scheduler
-- 轻量 dashboard
+- 邮箱池健康看板
+- 自动恢复 / 解冻策略
 - 审计查询接口

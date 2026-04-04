@@ -31,8 +31,10 @@
 ## 当前主线
 1. `Codex App` 额度反代
 2. `Codex Web` 额度反代
-3. 额度池挑选与最小路由
-4. 对外 OpenAI 兼容 API
+3. 自动注册机（母号 / 子号 / 邀请 / 验证 / 入池）
+4. 邮箱池（导入 / 轮询 / 质量治理 / 自动分层）
+5. 自动化目标发现与尝试
+6. 对外 OpenAI 兼容 API
 
 ---
 
@@ -45,6 +47,18 @@
 - `GET /v1/codex/quota-sources`
 - `GET /v1/codex/quota-overview`
 - `POST /v1/codex/quota/collect`
+- `POST /v1/codex/automation-targets/discover`
+- `POST /v1/codex/automation-targets/try`
+- `POST /v1/codex/auto-register`
+- `POST /v1/codex/auto-register/dispatch`
+- `POST /v1/codex/auto-register/worker/run`
+- `POST /v1/codex/auto-register/autoloop/run`
+- `POST /v1/codex/auto-register/dead-letter/recover`
+- `POST /v1/mailboxes/import`
+- `GET /v1/mailboxes/overview`
+- `POST /v1/mailboxes/expand`
+- `POST /v1/mailboxes/tiering/run`
+- `POST /v1/mailboxes/poll/run`
 - `POST /v1/chat/completions`
 - `POST /v1/responses`
 
@@ -56,6 +70,11 @@
 - session bridge
 - executor
 - sqlite repositories
+- registration task queue / safety state machine
+- verification task queue
+- managed mailbox pool / mailbox bindings / poll runs
+- mailbox capacity events / 自动升降级规则
+- automation target discovery / try / attempt history
 
 ---
 
@@ -70,9 +89,39 @@
 
 ### 当前启动
 ```bash
-cp .env.example .env
 cargo run
 ```
+
+### 当前关键运行条件
+- OS：Ubuntu 24.04 LTS 或同级 Linux
+- Rust：`rustc 1.94+`
+- Node：`v22+`
+- SQLite：本地文件可写
+- 内存：建议 >= 4GB（当前主机 3.6GiB，可跑但余量不大）
+- 磁盘：建议保留 >= 10GB 可用空间（当前 `/` 约剩 19GB）
+- 网络：
+  - 本地 OpenClaw gateway 可达
+  - 如要走真实指纹浏览器，后续需配置浏览器入口 API
+- 安全前提：
+  - API 走 Bearer 鉴权
+  - 邮箱导入接口不回显明文凭据
+  - 生产环境不建议把控制面直接暴露到公网
+
+### 当前已知运行风险 / 整改项
+- OpenClaw `security audit --deep` 有 **2 critical / 9 warn**
+- 当前主机发现：
+  - `sshd` 对外监听 `0.0.0.0:22`
+  - `cupsd` 对外监听 `0.0.0.0:631`
+  - OpenClaw 网关本身仍是 loopback，但通过 Tailscale Serve 暴露
+  - `ufw` / `nft` 未安装，说明主机缺少显式防火墙层
+- 当前项目代码自身可运行，`cargo test -q` 通过（17 + 17 + 32），但主机安全面仍需整改
+
+### 建议整改顺序
+1. 先处理 OpenClaw 高危插件审查 / 下线
+2. 给主机补上防火墙（至少限制 22 / 631）
+3. 明确是否真的需要 CUPS，对外不需要就关掉 631
+4. 收紧 OpenClaw `autoAllowSkills` / `strictInlineEval` / `trustedProxies`
+5. 升级 OpenClaw 到 `2026.4.2`
 
 ---
 
