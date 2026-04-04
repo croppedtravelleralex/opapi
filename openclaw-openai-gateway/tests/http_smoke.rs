@@ -860,7 +860,11 @@ async fn codex_auto_register_dispatch_runs_task_queue_and_warms_pool() {
         )
         .unwrap();
 
-    assert_eq!(completed_tasks, 4);
+    let retry_wait_tasks: i64 = conn
+        .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child2-example-com' AND status = 'retry_wait'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(completed_tasks, 3);
+    assert_eq!(retry_wait_tasks, 1);
     assert_eq!(child_status.0, "warm");
     assert_eq!(child_status.1, "active");
     assert_eq!(quota_count, 1);
@@ -897,7 +901,8 @@ async fn codex_auto_register_worker_runs_all_pending_tasks_with_fingerprint_brow
                 .method("POST")
                 .uri("/v1/codex/auto-register/worker/run")
                 .header("authorization", "Bearer sk-test")
-                .body(Body::empty())
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
                 .unwrap(),
         )
         .await
@@ -906,15 +911,21 @@ async fn codex_auto_register_worker_runs_all_pending_tasks_with_fingerprint_brow
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(payload["dispatched"], 4);
-    assert_eq!(payload["results"][0]["result"]["runner"], "fingerprint-browser");
-    assert_eq!(payload["results"][0]["result"]["provider"], "bitbrowser");
-    assert_eq!(payload["results"][0]["result"]["api_key_configured"], true);
+    let results = payload["results"].as_array().unwrap();
+    assert!(results.iter().any(|item| item["result"]["runner"] == "fingerprint-browser"));
+    assert!(results.iter().any(|item| item["result"]["provider"] == "bitbrowser"));
+    assert!(results.iter().any(|item| item["result"]["api_key_configured"] == true));
+    assert!(results.iter().any(|item| item["status"] == "retry_wait"));
 
     let conn = rusqlite::Connection::open(db_path).unwrap();
     let completed: i64 = conn
         .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child3-example-com' AND status = 'completed'", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(completed, 4);
+    let retry_wait: i64 = conn
+        .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child3-example-com' AND status = 'retry_wait'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(completed, 3);
+    assert_eq!(retry_wait, 1);
 }
 
 #[tokio::test]

@@ -70,6 +70,9 @@ pub struct RegistrationTaskItem {
     pub id: String,
     pub task_type: String,
     pub status: String,
+    pub next_run_at: Option<String>,
+    pub max_attempts: i64,
+    pub risk_score: i64,
 }
 
 #[derive(Serialize)]
@@ -78,6 +81,11 @@ pub struct DispatchRegistrationTaskResponse {
     pub task_type: String,
     pub status: String,
     pub result: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+pub struct RegistrationWorkerRunRequest {
+    pub max_tasks: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -209,10 +217,13 @@ pub async fn auto_register_codex_account(
     .into_iter()
     .map(|(task_type, payload_json)| {
         let task_id = format!("registration-task:{}:{}", child_account_id, task_type);
+        let default_risk_score = if task_type == "register-account" { 30 } else { 10 };
+        let max_attempts = if task_type == "register-account" { 2 } else { 3 };
         let _ = conn.execute(
             "INSERT OR REPLACE INTO registration_tasks (
-                id, parent_account_id, child_account_id, task_type, status, payload_json, result_json, queued_at, started_at, finished_at, error_reason
-            ) VALUES (?1, ?2, ?3, ?4, 'pending', ?5, NULL, ?6, NULL, NULL, NULL)",
+                id, parent_account_id, child_account_id, task_type, status, payload_json, result_json, queued_at, started_at, finished_at, error_reason,
+                attempt_count, max_attempts, next_run_at, lease_until, risk_score, dead_lettered
+            ) VALUES (?1, ?2, ?3, ?4, 'pending', ?5, NULL, ?6, NULL, NULL, NULL, 0, ?7, ?6, NULL, ?8, 0)",
             rusqlite::params![
                 task_id,
                 parent_account_id,
@@ -220,12 +231,17 @@ pub async fn auto_register_codex_account(
                 task_type,
                 payload_json.to_string(),
                 now,
+                max_attempts,
+                default_risk_score,
             ],
         );
         RegistrationTaskItem {
             id: task_id,
             task_type: task_type.into(),
             status: "pending".into(),
+            next_run_at: Some(now.clone()),
+            max_attempts,
+            risk_score: default_risk_score,
         }
     })
     .collect::<Vec<_>>();
@@ -244,9 +260,10 @@ pub async fn auto_register_codex_account(
 
 pub async fn run_registration_worker(
     State(state): State<Arc<AppState>>,
+    Json(payload): Json<RegistrationWorkerRunRequest>,
 ) -> Json<RunRegistrationWorkerResponse> {
     let mut results = Vec::new();
-    for _ in 0..8 {
+    for _ in 0..payload.max_tasks.unwrap_or(8) {
         let item = dispatch_registration_task_once(&state);
         if item.status == "idle" {
             break;
@@ -271,32 +288,53 @@ fn dispatch_registration_task_once(
     let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
     let now = chrono::Utc::now().to_rfc3339();
     let next = conn.query_row(
-        "SELECT id, parent_account_id, child_account_id, task_type, payload_json
+        "SELECT id, parent_account_id, child_account_id, task_type, payload_json, attempt_count, max_attempts, risk_score
          FROM registration_tasks
-         WHERE status = 'pending'
-         ORDER BY queued_at ASC, id ASC
+         WHERE status IN ('pending', 'retry_wait')
+           AND dead_lettered = 0
+           AND risk_score <= 70
+           AND (next_run_at IS NULL OR next_run_at <= ?1)
+           AND (lease_until IS NULL OR lease_until <= ?1)
+         ORDER BY next_run_at ASC, queued_at ASC, id ASC
          LIMIT 1",
-        [],
+        rusqlite::params![now],
         |row| Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
             row.get::<_, String>(2)?,
             row.get::<_, String>(3)?,
             row.get::<_, String>(4)?,
+            row.get::<_, i64>(5)?,
+            row.get::<_, i64>(6)?,
+            row.get::<_, i64>(7)?,
         )),
     );
 
-    let (id, parent_account_id, child_account_id, task_type, payload_json) =
+    let (id, parent_account_id, child_account_id, task_type, payload_json, attempt_count, max_attempts, risk_score) =
         next.unwrap_or_else(|_| (
             "registration-task:none".into(),
             "none".into(),
             "none".into(),
             "idle".into(),
             "{}".into(),
+            0,
+            0,
+            0,
         ));
+
+    if task_type != "idle" {
+        let lease_until = (chrono::Utc::now() + chrono::TimeDelta::seconds(90)).to_rfc3339();
+        let _ = conn.execute(
+            "UPDATE registration_tasks SET status = 'running', started_at = COALESCE(started_at, ?2), attempt_count = attempt_count + 1, lease_until = ?3 WHERE id = ?1",
+            rusqlite::params![id, now, lease_until],
+        );
+    }
 
     let result = match task_type.as_str() {
         "register-account" => {
+            if !state.config.fingerprint_browser_api_key.as_ref().map(|v| !v.is_empty()).unwrap_or(false) {
+                serde_json::json!({"runner": "fingerprint-browser", "status": "retry_wait", "error": "fingerprint_browser_api_missing", "retryable": true, "risk_score": risk_score + 20})
+            } else {
             let _ = conn.execute(
                 "UPDATE child_accounts SET status = 'registered', last_login_at = ?2 WHERE id = ?1",
                 rusqlite::params![child_account_id, now],
@@ -305,12 +343,22 @@ fn dispatch_registration_task_once(
                 "runner": "fingerprint-browser",
                 "provider": state.config.fingerprint_browser_provider.clone().unwrap_or_else(|| "pending-api".into()),
                 "base_url": state.config.fingerprint_browser_base_url,
-                "api_key_configured": state.config.fingerprint_browser_api_key.as_ref().map(|v| !v.is_empty()).unwrap_or(false),
+                "api_key_configured": true,
                 "action": "register-account",
-                "payload": serde_json::from_str::<serde_json::Value>(&payload_json).unwrap_or_default()
+                "payload": serde_json::from_str::<serde_json::Value>(&payload_json).unwrap_or_default(),
+                "safety_mode": "success-first"
             })
+            }
         }
         "accept-invite" => {
+            let membership_verified: i64 = conn.query_row(
+                "SELECT verified FROM space_memberships WHERE child_account_id = ?1",
+                rusqlite::params![child_account_id.clone()],
+                |row| row.get(0),
+            ).unwrap_or(0);
+            if membership_verified == 0 && attempt_count == 0 {
+                serde_json::json!({"runner": "fingerprint-browser", "status": "retry_wait", "error": "invite_confirmation_pending", "retryable": true, "risk_score": risk_score + 5})
+            } else {
             let _ = conn.execute(
                 "UPDATE invite_tasks SET status = 'accepted', accepted_at = ?2 WHERE child_account_id = ?1",
                 rusqlite::params![child_account_id, now],
@@ -325,8 +373,10 @@ fn dispatch_registration_task_once(
                 "base_url": state.config.fingerprint_browser_base_url,
                 "api_key_configured": state.config.fingerprint_browser_api_key.as_ref().map(|v| !v.is_empty()).unwrap_or(false),
                 "action": "accept-invite",
-                "parent_account_id": parent_account_id
+                "parent_account_id": parent_account_id,
+                "requires": ["email-check", "invite-confirmation"]
             })
+            }
         }
         "collect-quota" => {
             let collector = CodexQuotaCollector::new(state.config.sqlite_path.clone());
@@ -350,28 +400,67 @@ fn dispatch_registration_task_once(
             serde_json::json!({"runner": "quota-collector", "snapshot_id": snapshot.id, "pool_status": decision.pool_member.pool_status, "admission_level": decision.pool_member.admission_level})
         }
         "warmup-pool" => {
+            let admission_level: String = conn.query_row(
+                "SELECT admission_level FROM pool_members WHERE child_account_id = ?1",
+                rusqlite::params![child_account_id.clone()],
+                |row| row.get(0),
+            ).unwrap_or_else(|_| "red".into());
+            if admission_level == "red" {
+                serde_json::json!({"runner": "pool-warmer", "status": "blocked", "error": "unsafe_to_warmup_red_pool_member", "retryable": false, "risk_score": 95})
+            } else {
             let _ = conn.execute(
                 "UPDATE child_accounts SET status = 'warm', pool_status = 'active' WHERE id = ?1",
                 rusqlite::params![child_account_id],
             );
-            serde_json::json!({"runner": "pool-warmer", "target_pool_status": "active"})
+            serde_json::json!({"runner": "pool-warmer", "target_pool_status": "active", "safety_mode": "success-first"})
+            }
         }
         _ => serde_json::json!({"runner": "noop", "status": "idle"}),
     };
 
     if task_type != "idle" {
-        let _ = conn.execute(
-            "UPDATE registration_tasks
-             SET status = 'completed', started_at = COALESCE(started_at, ?2), finished_at = ?2, result_json = ?3
-             WHERE id = ?1",
-            rusqlite::params![id, now, result.to_string()],
-        );
+        let result_status = result["status"].as_str().unwrap_or("completed");
+        match result_status {
+            "retry_wait" => {
+                let dead = attempt_count + 1 >= max_attempts;
+                let next_run_at = (chrono::Utc::now() + chrono::TimeDelta::seconds(30 * (attempt_count + 1))).to_rfc3339();
+                let final_status = if dead { "dead_letter" } else { "retry_wait" };
+                let _ = conn.execute(
+                    "UPDATE registration_tasks
+                     SET status = ?2, finished_at = ?3, result_json = ?4, error_reason = json_extract(?4, '$.error'), next_run_at = ?5, lease_until = NULL, dead_lettered = ?6, risk_score = json_extract(?4, '$.risk_score')
+                     WHERE id = ?1",
+                    rusqlite::params![id, final_status, now, result.to_string(), next_run_at, if dead {1} else {0}],
+                );
+            }
+            "blocked" => {
+                let _ = conn.execute(
+                    "UPDATE registration_tasks
+                     SET status = 'blocked', finished_at = ?2, result_json = ?3, error_reason = json_extract(?3, '$.error'), lease_until = NULL, risk_score = json_extract(?3, '$.risk_score')
+                     WHERE id = ?1",
+                    rusqlite::params![id, now, result.to_string()],
+                );
+            }
+            _ => {
+                let _ = conn.execute(
+                    "UPDATE registration_tasks
+                     SET status = 'completed', finished_at = ?2, result_json = ?3, lease_until = NULL
+                     WHERE id = ?1",
+                    rusqlite::params![id, now, result.to_string()],
+                );
+            }
+        }
     }
+
+    let final_status = if task_type == "idle" {
+        "idle".into()
+    } else {
+        conn.query_row("SELECT status FROM registration_tasks WHERE id = ?1", rusqlite::params![id.clone()], |row| row.get(0)).unwrap_or_else(|_| "completed".into())
+    };
 
     DispatchRegistrationTaskResponse {
         id,
         task_type,
-        status: if result["status"] == "idle" { "idle".into() } else { "completed".into() },
+        status: final_status,
         result,
     }
 }

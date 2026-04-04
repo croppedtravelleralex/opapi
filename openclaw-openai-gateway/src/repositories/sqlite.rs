@@ -123,7 +123,13 @@ impl SqliteModelRepository {
                 queued_at TEXT NOT NULL,
                 started_at TEXT,
                 finished_at TEXT,
-                error_reason TEXT
+                error_reason TEXT,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                max_attempts INTEGER NOT NULL DEFAULT 3,
+                next_run_at TEXT,
+                lease_until TEXT,
+                risk_score INTEGER NOT NULL DEFAULT 0,
+                dead_lettered INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS quota_snapshots (
                 id TEXT PRIMARY KEY,
