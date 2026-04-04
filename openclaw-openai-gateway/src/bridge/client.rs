@@ -1,26 +1,37 @@
 use crate::bridge::{
-    mapper::{
-        map_chat_request,
-        map_chat_response,
-        map_codex_app_chat_request,
-        map_codex_app_response_request,
-        map_response_output,
-        map_response_request,
-    },
+    mock::{build_codex_app_chat_payload, build_codex_app_response_payload},
+    real::{proxy_codex_app_chat as real_codex_app_chat, proxy_codex_app_response as real_codex_app_response},
+    mapper::{map_chat_request, map_chat_response, map_response_output, map_response_request},
     types::{BridgeRequest, BridgeResponse},
 };
 use serde_json::Value;
 use tokio::time::{timeout, Duration};
 use tokio_tungstenite::connect_async;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OpenClawWsTransportMode {
+    Mock,
+    Real,
+}
+
+impl OpenClawWsTransportMode {
+    pub fn from_str(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "real" => Self::Real,
+            _ => Self::Mock,
+        }
+    }
+}
+
 pub struct OpenClawWsClient {
     url: String,
     timeout_ms: u64,
+    mode: OpenClawWsTransportMode,
 }
 
 impl OpenClawWsClient {
-    pub fn new(url: String, timeout_ms: u64) -> Self {
-        Self { url, timeout_ms }
+    pub fn new(url: String, timeout_ms: u64, mode: OpenClawWsTransportMode) -> Self {
+        Self { url, timeout_ms, mode }
     }
 
     pub async fn check_ready(&self) -> bool {
@@ -28,11 +39,7 @@ impl OpenClawWsClient {
         matches!(connect, Ok(Ok((_ws, _resp))))
     }
 
-    pub async fn proxy_chat(
-        &self,
-        model: &str,
-        user_text: &str,
-    ) -> Result<Value, String> {
+    pub async fn proxy_chat(&self, model: &str, user_text: &str) -> Result<Value, String> {
         if !self.check_ready().await {
             return Err("upstream unavailable".into());
         }
@@ -56,11 +63,7 @@ impl OpenClawWsClient {
         Ok(bridge_response.upstream_payload)
     }
 
-    pub async fn proxy_response(
-        &self,
-        model: &str,
-        input: &str,
-    ) -> Result<Value, String> {
+    pub async fn proxy_response(&self, model: &str, input: &str) -> Result<Value, String> {
         if !self.check_ready().await {
             return Err("upstream unavailable".into());
         }
@@ -93,29 +96,26 @@ impl OpenClawWsClient {
             return Err("upstream unavailable".into());
         }
 
-        let bridge_request = BridgeRequest {
-            upstream_payload: map_codex_app_chat_request(
+        match self.mode {
+            OpenClawWsTransportMode::Mock => Ok(build_codex_app_chat_payload(
                 model,
                 user_text,
                 session_namespace,
                 session_key_hint,
                 freshness_seconds,
-            ),
-        };
-        let assistant_text = bridge_request
-            .upstream_payload
-            .get("input")
-            .and_then(|v| v.get("messages"))
-            .and_then(|v| v.get(0))
-            .and_then(|v| v.get("content"))
-            .and_then(|v| v.as_str())
-            .map(|text| format!("codex-app proxy mapped: {}", text))
-            .unwrap_or_else(|| "codex-app proxy mapped: empty".into());
-        let bridge_response = BridgeResponse {
-            upstream_payload: map_chat_response(model, &assistant_text),
-        };
-
-        Ok(bridge_response.upstream_payload)
+            )
+            .await),
+            OpenClawWsTransportMode::Real => real_codex_app_chat(
+                &self.url,
+                self.timeout_ms,
+                model,
+                user_text,
+                session_namespace,
+                session_key_hint,
+                freshness_seconds,
+            )
+            .await,
+        }
     }
 
     pub async fn proxy_codex_app_response(
@@ -130,25 +130,48 @@ impl OpenClawWsClient {
             return Err("upstream unavailable".into());
         }
 
-        let bridge_request = BridgeRequest {
-            upstream_payload: map_codex_app_response_request(
+        match self.mode {
+            OpenClawWsTransportMode::Mock => Ok(build_codex_app_response_payload(
                 model,
                 input,
                 session_namespace,
                 session_key_hint,
                 freshness_seconds,
-            ),
-        };
-        let output_text = bridge_request
-            .upstream_payload
-            .get("input")
-            .and_then(|v| v.as_str())
-            .map(|text| format!("codex-app proxy mapped: {}", text))
-            .unwrap_or_else(|| "codex-app proxy mapped: empty".into());
-        let bridge_response = BridgeResponse {
-            upstream_payload: map_response_output(model, &output_text),
-        };
+            )
+            .await),
+            OpenClawWsTransportMode::Real => real_codex_app_response(
+                &self.url,
+                self.timeout_ms,
+                model,
+                input,
+                session_namespace,
+                session_key_hint,
+                freshness_seconds,
+            )
+            .await,
+        }
+    }
+}
 
-        Ok(bridge_response.upstream_payload)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_str_defaults_to_mock_and_accepts_real() {
+        assert_eq!(OpenClawWsTransportMode::from_str("real"), OpenClawWsTransportMode::Real);
+        assert_eq!(OpenClawWsTransportMode::from_str("REAL"), OpenClawWsTransportMode::Real);
+        assert_eq!(OpenClawWsTransportMode::from_str(" mock "), OpenClawWsTransportMode::Mock);
+        assert_eq!(OpenClawWsTransportMode::from_str("anything-else"), OpenClawWsTransportMode::Mock);
+    }
+
+    #[test]
+    fn new_keeps_transport_mode() {
+        let client = OpenClawWsClient::new(
+            "ws://127.0.0.1:1".into(),
+            25,
+            OpenClawWsTransportMode::Real,
+        );
+        assert_eq!(client.mode, OpenClawWsTransportMode::Real);
     }
 }
