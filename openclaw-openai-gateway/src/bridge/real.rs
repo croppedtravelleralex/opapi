@@ -74,15 +74,27 @@ async fn send_bridge_request(
 }
 
 fn parse_ws_message(message: Message) -> Result<Value, String> {
-    match message {
+    let payload = match message {
         Message::Text(text) => {
-            serde_json::from_str(&text).map_err(|err| format!("real_ws_invalid_json:{}", err))
+            serde_json::from_str(&text).map_err(|err| format!("real_ws_invalid_json:{}", err))?
         }
         Message::Binary(bytes) => serde_json::from_slice(&bytes)
-            .map_err(|err| format!("real_ws_invalid_binary_json:{}", err)),
-        Message::Close(_) => Err("real_ws_connection_closed".into()),
-        other => Err(format!("real_ws_unexpected_message_type:{:?}", other)),
+            .map_err(|err| format!("real_ws_invalid_binary_json:{}", err))?,
+        Message::Close(_) => return Err("real_ws_connection_closed".into()),
+        other => return Err(format!("real_ws_unexpected_message_type:{:?}", other)),
+    };
+
+    normalize_real_payload(payload)
+}
+
+fn normalize_real_payload(payload: Value) -> Result<Value, String> {
+    if let Some(upstream_payload) = payload.get("upstream_payload") {
+        return Ok(upstream_payload.clone());
     }
+    if let Some(error) = payload.get("error") {
+        return Err(format!("real_ws_upstream_error:{}", error));
+    }
+    Ok(payload)
 }
 
 #[cfg(test)]
@@ -101,5 +113,26 @@ mod tests {
     fn parse_ws_message_rejects_ping_frames() {
         let err = parse_ws_message(Message::Ping(vec![1, 2, 3].into())).unwrap_err();
         assert!(err.starts_with("real_ws_unexpected_message_type:"));
+    }
+
+    #[test]
+    fn normalize_real_payload_unwraps_bridge_response_shape() {
+        let parsed = normalize_real_payload(json!({
+            "upstream_payload": {
+                "runtime": {"session_namespace": "real-ns"},
+                "choices": [{"message": {"content": "ok"}}]
+            }
+        }))
+        .unwrap();
+        assert_eq!(parsed["runtime"]["session_namespace"], "real-ns");
+    }
+
+    #[test]
+    fn normalize_real_payload_returns_upstream_error() {
+        let err = normalize_real_payload(json!({
+            "error": {"code": "bad_upstream", "message": "boom"}
+        }))
+        .unwrap_err();
+        assert!(err.starts_with("real_ws_upstream_error:"));
     }
 }

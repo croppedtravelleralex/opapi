@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub struct ResponsesRequest {
     pub model: String,
     pub input: String,
+    #[allow(dead_code)]
     pub stream: Option<bool>,
 }
 

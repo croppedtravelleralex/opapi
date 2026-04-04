@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub struct ChatCompletionRequest {
     pub model: String,
     pub messages: Vec<ChatMessage>,
+    #[allow(dead_code)]
     pub stream: Option<bool>,
 }
 
