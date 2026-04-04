@@ -12,6 +12,9 @@ pub struct Config {
     pub models: Vec<String>,
     pub sqlite_path: String,
     pub codex_session_bridge_mode: String,
+    pub fingerprint_browser_base_url: Option<String>,
+    pub fingerprint_browser_api_key: Option<String>,
+    pub fingerprint_browser_provider: Option<String>,
     #[allow(dead_code)]
     pub third_party_provider_id: Option<String>,
     #[allow(dead_code)]
@@ -66,6 +69,9 @@ impl Config {
             models,
             sqlite_path,
             codex_session_bridge_mode: env::var("CODEX_SESSION_BRIDGE_MODE").unwrap_or_else(|_| "mock".into()),
+            fingerprint_browser_base_url: env::var("FINGERPRINT_BROWSER_BASE_URL").ok(),
+            fingerprint_browser_api_key: env::var("FINGERPRINT_BROWSER_API_KEY").ok(),
+            fingerprint_browser_provider: env::var("FINGERPRINT_BROWSER_PROVIDER").ok(),
             third_party_provider_id: env::var("THIRD_PARTY_PROVIDER_ID").ok(),
             third_party_base_url: env::var("THIRD_PARTY_BASE_URL").ok(),
             third_party_api_key: env::var("THIRD_PARTY_API_KEY").ok(),

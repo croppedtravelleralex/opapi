@@ -21,6 +21,9 @@ async fn test_app() -> (axum::Router, String) {
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
         codex_session_bridge_mode: "mock".into(),
+        fingerprint_browser_base_url: Some("http://fingerprint.local".into()),
+        fingerprint_browser_api_key: Some("fp-secret".into()),
+        fingerprint_browser_provider: Some("bitbrowser".into()),
         third_party_provider_id: None,
         third_party_base_url: None,
         third_party_api_key: None,
@@ -678,6 +681,9 @@ async fn providers_do_not_import_third_party_provider_in_local_first_mode() {
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
         codex_session_bridge_mode: "mock".into(),
+        fingerprint_browser_base_url: None,
+        fingerprint_browser_api_key: None,
+        fingerprint_browser_provider: None,
         third_party_provider_id: Some("api.openai-compatible-demo".into()),
         third_party_base_url: Some("https://example.com/v1".into()),
         third_party_api_key: Some("sk-demo-provider-key".into()),
@@ -718,6 +724,9 @@ async fn routing_explain_uses_capability_and_availability() {
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path,
         codex_session_bridge_mode: "mock".into(),
+        fingerprint_browser_base_url: None,
+        fingerprint_browser_api_key: None,
+        fingerprint_browser_provider: None,
         third_party_provider_id: None,
         third_party_base_url: None,
         third_party_api_key: None,
@@ -860,6 +869,55 @@ async fn codex_auto_register_dispatch_runs_task_queue_and_warms_pool() {
 }
 
 #[tokio::test]
+async fn codex_auto_register_worker_runs_all_pending_tasks_with_fingerprint_browser_metadata() {
+    let (app, db_path) = test_app().await;
+
+    let _ = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "parent_email": "parent3@example.com",
+                        "child_email": "child3@example.com"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register/worker/run")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["dispatched"], 4);
+    assert_eq!(payload["results"][0]["result"]["runner"], "fingerprint-browser");
+    assert_eq!(payload["results"][0]["result"]["provider"], "bitbrowser");
+    assert_eq!(payload["results"][0]["result"]["api_key_configured"], true);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let completed: i64 = conn
+        .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child3-example-com' AND status = 'completed'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(completed, 4);
+}
+
+#[tokio::test]
 async fn sqlite_file_is_seeded() {
     let (app, db_path) = test_app().await;
     let _ = app;
@@ -931,6 +989,9 @@ async fn chat_returns_no_healthy_pool_member_when_pool_empty() {
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
         codex_session_bridge_mode: "openclaw-ws".into(),
+        fingerprint_browser_base_url: None,
+        fingerprint_browser_api_key: None,
+        fingerprint_browser_provider: None,
         third_party_provider_id: None,
         third_party_base_url: None,
         third_party_api_key: None,
@@ -1020,6 +1081,9 @@ async fn responses_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_
         models: vec!["openclaw-default".into()],
         sqlite_path: db_path.clone(),
         codex_session_bridge_mode: "openclaw-ws".into(),
+        fingerprint_browser_base_url: None,
+        fingerprint_browser_api_key: None,
+        fingerprint_browser_provider: None,
         third_party_provider_id: None,
         third_party_base_url: None,
         third_party_api_key: None,

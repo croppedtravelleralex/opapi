@@ -80,6 +80,12 @@ pub struct DispatchRegistrationTaskResponse {
     pub result: serde_json::Value,
 }
 
+#[derive(Serialize)]
+pub struct RunRegistrationWorkerResponse {
+    pub dispatched: usize,
+    pub results: Vec<DispatchRegistrationTaskResponse>,
+}
+
 #[derive(Deserialize)]
 pub struct CollectCodexQuotaRequest {
     pub child_account_id: String,
@@ -236,9 +242,32 @@ pub async fn auto_register_codex_account(
     })
 }
 
+pub async fn run_registration_worker(
+    State(state): State<Arc<AppState>>,
+) -> Json<RunRegistrationWorkerResponse> {
+    let mut results = Vec::new();
+    for _ in 0..8 {
+        let item = dispatch_registration_task_once(&state);
+        if item.status == "idle" {
+            break;
+        }
+        results.push(item);
+    }
+    Json(RunRegistrationWorkerResponse {
+        dispatched: results.len(),
+        results,
+    })
+}
+
 pub async fn dispatch_registration_task(
     State(state): State<Arc<AppState>>,
 ) -> Json<DispatchRegistrationTaskResponse> {
+    Json(dispatch_registration_task_once(&state))
+}
+
+fn dispatch_registration_task_once(
+    state: &Arc<AppState>,
+) -> DispatchRegistrationTaskResponse {
     let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
     let now = chrono::Utc::now().to_rfc3339();
     let next = conn.query_row(
@@ -272,7 +301,14 @@ pub async fn dispatch_registration_task(
                 "UPDATE child_accounts SET status = 'registered', last_login_at = ?2 WHERE id = ?1",
                 rusqlite::params![child_account_id, now],
             );
-            serde_json::json!({"runner": "mock-browser", "action": "register-account", "payload": serde_json::from_str::<serde_json::Value>(&payload_json).unwrap_or_default()})
+            serde_json::json!({
+                "runner": "fingerprint-browser",
+                "provider": state.config.fingerprint_browser_provider.clone().unwrap_or_else(|| "pending-api".into()),
+                "base_url": state.config.fingerprint_browser_base_url,
+                "api_key_configured": state.config.fingerprint_browser_api_key.as_ref().map(|v| !v.is_empty()).unwrap_or(false),
+                "action": "register-account",
+                "payload": serde_json::from_str::<serde_json::Value>(&payload_json).unwrap_or_default()
+            })
         }
         "accept-invite" => {
             let _ = conn.execute(
@@ -283,7 +319,14 @@ pub async fn dispatch_registration_task(
                 "UPDATE space_memberships SET joined = 1, verified = 1, verified_at = ?2 WHERE child_account_id = ?1",
                 rusqlite::params![child_account_id, now],
             );
-            serde_json::json!({"runner": "mock-browser", "action": "accept-invite", "parent_account_id": parent_account_id})
+            serde_json::json!({
+                "runner": "fingerprint-browser",
+                "provider": state.config.fingerprint_browser_provider.clone().unwrap_or_else(|| "pending-api".into()),
+                "base_url": state.config.fingerprint_browser_base_url,
+                "api_key_configured": state.config.fingerprint_browser_api_key.as_ref().map(|v| !v.is_empty()).unwrap_or(false),
+                "action": "accept-invite",
+                "parent_account_id": parent_account_id
+            })
         }
         "collect-quota" => {
             let collector = CodexQuotaCollector::new(state.config.sqlite_path.clone());
@@ -325,12 +368,12 @@ pub async fn dispatch_registration_task(
         );
     }
 
-    Json(DispatchRegistrationTaskResponse {
+    DispatchRegistrationTaskResponse {
         id,
         task_type,
         status: if result["status"] == "idle" { "idle".into() } else { "completed".into() },
         result,
-    })
+    }
 }
 
 pub async fn collect_codex_quota(
