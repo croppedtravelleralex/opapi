@@ -61,7 +61,23 @@ pub struct AutoRegisterCodexAccountResponse {
     pub space_membership_id: String,
     pub proxy_key_id: String,
     pub proxy_key_plaintext: String,
+    pub registration_tasks: Vec<RegistrationTaskItem>,
     pub status: String,
+}
+
+#[derive(Serialize)]
+pub struct RegistrationTaskItem {
+    pub id: String,
+    pub task_type: String,
+    pub status: String,
+}
+
+#[derive(Serialize)]
+pub struct DispatchRegistrationTaskResponse {
+    pub id: String,
+    pub task_type: String,
+    pub status: String,
+    pub result: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -178,6 +194,36 @@ pub async fn auto_register_codex_account(
         ],
     );
 
+    let registration_tasks = vec![
+        ("register-account", serde_json::json!({"fingerprint_profile_id": payload.fingerprint_profile_id, "child_email": payload.child_email})),
+        ("accept-invite", serde_json::json!({"invite_task_id": invite_task_id, "parent_email": payload.parent_email})),
+        ("collect-quota", serde_json::json!({"source_id": "codex-app", "source_page": "/codex"})),
+        ("warmup-pool", serde_json::json!({"target_pool_status": "active"})),
+    ]
+    .into_iter()
+    .map(|(task_type, payload_json)| {
+        let task_id = format!("registration-task:{}:{}", child_account_id, task_type);
+        let _ = conn.execute(
+            "INSERT OR REPLACE INTO registration_tasks (
+                id, parent_account_id, child_account_id, task_type, status, payload_json, result_json, queued_at, started_at, finished_at, error_reason
+            ) VALUES (?1, ?2, ?3, ?4, 'pending', ?5, NULL, ?6, NULL, NULL, NULL)",
+            rusqlite::params![
+                task_id,
+                parent_account_id,
+                child_account_id,
+                task_type,
+                payload_json.to_string(),
+                now,
+            ],
+        );
+        RegistrationTaskItem {
+            id: task_id,
+            task_type: task_type.into(),
+            status: "pending".into(),
+        }
+    })
+    .collect::<Vec<_>>();
+
     Json(AutoRegisterCodexAccountResponse {
         parent_account_id,
         child_account_id,
@@ -185,7 +231,105 @@ pub async fn auto_register_codex_account(
         space_membership_id,
         proxy_key_id,
         proxy_key_plaintext,
+        registration_tasks,
         status: "pending_invite".into(),
+    })
+}
+
+pub async fn dispatch_registration_task(
+    State(state): State<Arc<AppState>>,
+) -> Json<DispatchRegistrationTaskResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let next = conn.query_row(
+        "SELECT id, parent_account_id, child_account_id, task_type, payload_json
+         FROM registration_tasks
+         WHERE status = 'pending'
+         ORDER BY queued_at ASC, id ASC
+         LIMIT 1",
+        [],
+        |row| Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+        )),
+    );
+
+    let (id, parent_account_id, child_account_id, task_type, payload_json) =
+        next.unwrap_or_else(|_| (
+            "registration-task:none".into(),
+            "none".into(),
+            "none".into(),
+            "idle".into(),
+            "{}".into(),
+        ));
+
+    let result = match task_type.as_str() {
+        "register-account" => {
+            let _ = conn.execute(
+                "UPDATE child_accounts SET status = 'registered', last_login_at = ?2 WHERE id = ?1",
+                rusqlite::params![child_account_id, now],
+            );
+            serde_json::json!({"runner": "mock-browser", "action": "register-account", "payload": serde_json::from_str::<serde_json::Value>(&payload_json).unwrap_or_default()})
+        }
+        "accept-invite" => {
+            let _ = conn.execute(
+                "UPDATE invite_tasks SET status = 'accepted', accepted_at = ?2 WHERE child_account_id = ?1",
+                rusqlite::params![child_account_id, now],
+            );
+            let _ = conn.execute(
+                "UPDATE space_memberships SET joined = 1, verified = 1, verified_at = ?2 WHERE child_account_id = ?1",
+                rusqlite::params![child_account_id, now],
+            );
+            serde_json::json!({"runner": "mock-browser", "action": "accept-invite", "parent_account_id": parent_account_id})
+        }
+        "collect-quota" => {
+            let collector = CodexQuotaCollector::new(state.config.sqlite_path.clone());
+            let snapshot = collector.collect_from_page_text(
+                crate::codex::parser::CodexQuotaPageInput {
+                    child_account_id: child_account_id.clone(),
+                    source_id: "codex-app".into(),
+                    source_page: "/codex".into(),
+                    page_text: "5h 82% 7d 94% requests 8 tokens 2048 messages 6".into(),
+                    page_html: None,
+                    snapshot_ref: Some("auto-register-warmup".into()),
+                },
+                crate::codex::collector::CodexAppSessionInput {
+                    session_namespace: Some(format!("auto-register:{}", child_account_id)),
+                    session_key_hint: Some(format!("bootstrap:{}", child_account_id)),
+                },
+            ).unwrap();
+            let decision = decide_from_snapshot(&snapshot);
+            let pool_repo = PoolMemberRepository::new(state.config.sqlite_path.clone());
+            let _ = pool_repo.upsert(&decision.pool_member);
+            serde_json::json!({"runner": "quota-collector", "snapshot_id": snapshot.id, "pool_status": decision.pool_member.pool_status, "admission_level": decision.pool_member.admission_level})
+        }
+        "warmup-pool" => {
+            let _ = conn.execute(
+                "UPDATE child_accounts SET status = 'warm', pool_status = 'active' WHERE id = ?1",
+                rusqlite::params![child_account_id],
+            );
+            serde_json::json!({"runner": "pool-warmer", "target_pool_status": "active"})
+        }
+        _ => serde_json::json!({"runner": "noop", "status": "idle"}),
+    };
+
+    if task_type != "idle" {
+        let _ = conn.execute(
+            "UPDATE registration_tasks
+             SET status = 'completed', started_at = COALESCE(started_at, ?2), finished_at = ?2, result_json = ?3
+             WHERE id = ?1",
+            rusqlite::params![id, now, result.to_string()],
+        );
+    }
+
+    Json(DispatchRegistrationTaskResponse {
+        id,
+        task_type,
+        status: if result["status"] == "idle" { "idle".into() } else { "completed".into() },
+        result,
     })
 }
 

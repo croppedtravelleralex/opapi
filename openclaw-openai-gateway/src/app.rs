@@ -19,6 +19,7 @@ pub fn build_app(state: Arc<AppState>) -> Router {
         .route("/v1/codex/quota-sources", get(codex::list_codex_quota_sources))
         .route("/v1/codex/quota-overview", get(codex::get_codex_quota_overview))
         .route("/v1/codex/auto-register", post(codex::auto_register_codex_account))
+        .route("/v1/codex/auto-register/dispatch", post(codex::dispatch_registration_task))
         .route("/v1/codex/quota/collect", post(codex::collect_codex_quota))
         .route("/v1/chat/completions", post(chat::create_chat_completion))
         .route("/v1/responses", post(responses::create_response))

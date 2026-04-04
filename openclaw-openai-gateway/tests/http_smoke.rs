@@ -765,6 +765,7 @@ async fn codex_auto_register_creates_parent_child_invite_membership_and_proxy_ke
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(payload["status"], "pending_invite");
+    assert_eq!(payload["registration_tasks"].as_array().unwrap().len(), 4);
     assert!(payload["proxy_key_plaintext"].as_str().unwrap().starts_with("opapi_child-example-com_"));
 
     let conn = rusqlite::Connection::open(db_path).unwrap();
@@ -788,6 +789,74 @@ async fn codex_auto_register_creates_parent_child_invite_membership_and_proxy_ke
     assert_eq!(invite_count, 1);
     assert_eq!(membership_count, 1);
     assert_eq!(proxy_key_count, 1);
+}
+
+#[tokio::test]
+async fn codex_auto_register_dispatch_runs_task_queue_and_warms_pool() {
+    let (app, db_path) = test_app().await;
+
+    let _ = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "parent_email": "parent2@example.com",
+                        "child_email": "child2@example.com"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    for _ in 0..4 {
+        let response = app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/codex/auto-register/dispatch")
+                    .header("authorization", "Bearer sk-test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let completed_tasks: i64 = conn
+        .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child2-example-com' AND status = 'completed'", [], |row| row.get(0))
+        .unwrap();
+    let child_status: (String, String) = conn
+        .query_row(
+            "SELECT status, pool_status FROM child_accounts WHERE id = 'child:child2-example-com'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    let quota_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM quota_snapshots WHERE child_account_id = 'child:child2-example-com'", [], |row| row.get(0))
+        .unwrap();
+    let pool_row: (String, String) = conn
+        .query_row(
+            "SELECT pool_status, admission_level FROM pool_members WHERE child_account_id = 'child:child2-example-com'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+
+    assert_eq!(completed_tasks, 4);
+    assert_eq!(child_status.0, "warm");
+    assert_eq!(child_status.1, "active");
+    assert_eq!(quota_count, 1);
+    assert_eq!(pool_row.0, "active");
+    assert_eq!(pool_row.1, "green");
 }
 
 #[tokio::test]

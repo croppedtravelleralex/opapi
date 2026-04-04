@@ -112,6 +112,19 @@ impl SqliteModelRepository {
                 accepted_at TEXT,
                 error_reason TEXT
             );
+            CREATE TABLE IF NOT EXISTS registration_tasks (
+                id TEXT PRIMARY KEY,
+                parent_account_id TEXT NOT NULL,
+                child_account_id TEXT NOT NULL,
+                task_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                result_json TEXT,
+                queued_at TEXT NOT NULL,
+                started_at TEXT,
+                finished_at TEXT,
+                error_reason TEXT
+            );
             CREATE TABLE IF NOT EXISTS quota_snapshots (
                 id TEXT PRIMARY KEY,
                 child_account_id TEXT NOT NULL,
