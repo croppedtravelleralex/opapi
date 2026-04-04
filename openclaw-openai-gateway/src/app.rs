@@ -1,6 +1,6 @@
 use crate::{
     middleware::{auth::auth_middleware, request_id::request_id_middleware},
-    routes::{chat, codex, health, models, providers, responses},
+    routes::{chat, codex, health, models, ops, providers, responses},
     state::AppState,
 };
 use axum::{
@@ -16,6 +16,9 @@ pub fn build_app(state: Arc<AppState>) -> Router {
         .route("/readyz", get(health::readyz))
         .route("/v1/models", get(models::list_models))
         .route("/v1/providers", get(providers::list_providers))
+        .route("/ops/overview", get(ops::get_ops_overview))
+        .route("/ops/dashboard", get(ops::get_ops_dashboard))
+        .route("/ops/scheduler/tick", post(ops::run_scheduler_tick))
         .route("/v1/codex/quota-sources", get(codex::list_codex_quota_sources))
         .route("/v1/codex/quota-overview", get(codex::get_codex_quota_overview))
         .route("/v1/codex/automation-targets/discover", post(codex::discover_automation_targets))

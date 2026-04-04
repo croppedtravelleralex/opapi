@@ -1525,3 +1525,92 @@ async fn responses_openclaw_ws_bridge_mode_returns_upstream_unavailable_when_ws_
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
+
+#[tokio::test]
+async fn ops_overview_and_dashboard_are_available_over_authenticated_local_routes() {
+    let (app, db_path) = test_app().await;
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute("INSERT INTO managed_mailboxes (id, email, status, success_count, failure_count, quality_score, expansion_tier, reservation_count, created_at, updated_at) VALUES ('mb-ops', 'ops@example.com', 'active', 4, 1, 82, 'scaled', 0, 'now', 'now')", []).unwrap();
+    conn.execute("INSERT INTO registration_tasks (id, parent_account_id, child_account_id, task_type, status, payload_json, result_json, queued_at, started_at, finished_at, error_reason, attempt_count, max_attempts, next_run_at, lease_until, risk_score, dead_lettered) VALUES ('rt-ops', 'parent-ops', 'child-ops', 'register-account', 'pending', '{}', NULL, 'now', NULL, NULL, NULL, 0, 3, datetime('now','-1 minute'), NULL, 10, 0)", []).unwrap();
+
+    let overview = app.clone().oneshot(
+        Request::builder()
+            .method("GET")
+            .uri("/ops/overview")
+            .header("authorization", "Bearer sk-test")
+            .body(Body::empty())
+            .unwrap(),
+    ).await.unwrap();
+    assert_eq!(overview.status(), StatusCode::OK);
+    let overview_body = to_bytes(overview.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&overview_body).unwrap();
+    assert_eq!(payload["remote_access_mode"], "ssh-tunnel-only");
+    assert_eq!(payload["public_exposure"], false);
+    assert_eq!(payload["mailbox_pool"]["total"], 1);
+    assert_eq!(payload["registration_tasks"]["total"], 1);
+
+    let dashboard = app.oneshot(
+        Request::builder()
+            .method("GET")
+            .uri("/ops/dashboard")
+            .header("authorization", "Bearer sk-test")
+            .body(Body::empty())
+            .unwrap(),
+    ).await.unwrap();
+    assert_eq!(dashboard.status(), StatusCode::OK);
+    let dashboard_body = to_bytes(dashboard.into_body(), usize::MAX).await.unwrap();
+    let html = String::from_utf8(dashboard_body.to_vec()).unwrap();
+    assert!(html.contains("opapi 轻量运维面板"));
+    assert!(html.contains("SSH 访问方式"));
+}
+
+#[tokio::test]
+async fn scheduler_tick_runs_worker_poll_tiering_and_recovery() {
+    let (app, _db_path) = test_app().await;
+    let register_response = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/v1/codex/auto-register")
+            .header("authorization", "Bearer sk-test")
+            .header("content-type", "application/json")
+            .body(Body::from(json!({
+                "parent_email": "parent@example.com",
+                "child_email": "child@example.com",
+                "space_name": "ops-space"
+            }).to_string()))
+            .unwrap(),
+    ).await.unwrap();
+    assert_eq!(register_response.status(), StatusCode::OK);
+
+    let import_response = app.clone().oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/v1/mailboxes/import")
+            .header("authorization", "Bearer sk-test")
+            .header("content-type", "application/json")
+            .body(Body::from(json!({
+                "mailboxes": [{
+                    "email": "mailbox@example.com",
+                    "password": "pw"
+                }]
+            }).to_string()))
+            .unwrap(),
+    ).await.unwrap();
+    assert_eq!(import_response.status(), StatusCode::OK);
+
+    let tick = app.oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/ops/scheduler/tick")
+            .header("authorization", "Bearer sk-test")
+            .body(Body::empty())
+            .unwrap(),
+    ).await.unwrap();
+    assert_eq!(tick.status(), StatusCode::OK);
+    let tick_body = to_bytes(tick.into_body(), usize::MAX).await.unwrap();
+    let payload: Value = serde_json::from_slice(&tick_body).unwrap();
+    assert!(payload["registration_worker"]["dispatched"].as_u64().unwrap() >= 1);
+    assert!(payload["mailbox_poll"]["polled"].is_number());
+    assert!(payload["mailbox_tiering"]["promoted"].is_number());
+    assert!(payload["dead_letter_recover"]["requeued"].is_number());
+}

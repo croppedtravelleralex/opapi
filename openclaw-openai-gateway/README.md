@@ -102,6 +102,7 @@ cargo run
 - 网络：
   - 本地 OpenClaw gateway 可达
   - 如要走真实指纹浏览器，后续需配置浏览器入口 API
+  - dashboard 只建议绑定 `127.0.0.1`，通过 **SSH 端口转发**远程访问，不直接公网开放
 - 安全前提：
   - API 走 Bearer 鉴权
   - 邮箱导入接口不回显明文凭据
@@ -122,6 +123,20 @@ cargo run
 3. 明确是否真的需要 CUPS，对外不需要就关掉 631
 4. 收紧 OpenClaw `autoAllowSkills` / `strictInlineEval` / `trustedProxies`
 5. 升级 OpenClaw 到 `2026.4.2`
+
+### 新增轻运维面板 / 调度入口
+- `GET /ops/overview`
+- `GET /ops/dashboard`
+- `POST /ops/scheduler/tick`
+
+说明：
+- `dashboard` 目标是**轻运维观察面**，不是大后台
+- 推荐访问方式：
+```bash
+ssh -L 8088:127.0.0.1:<服务端口> <你的服务器>
+```
+- 然后本机浏览器打开：
+  - `http://127.0.0.1:8088/ops/dashboard`
 
 ---
 

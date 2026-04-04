@@ -6,14 +6,17 @@
 1. 已把自动注册机推进到 registration task queue + verification + dead-letter recover
 2. 已把邮箱池推进到 import / poll / overview / expand / auto tiering
 3. 已把 automation target 推进到 discover / try / attempt history
-4. 已完成本机只读运行环境核查：OpenClaw 状态、security audit、update status、监听端口、磁盘、内存、工具链、项目测试
-5. 已确认项目代码运行正常，但主机安全条件需要整改
+4. 已补轻 dashboard / ops overview / scheduler tick 三个运维入口
+5. 已明确 dashboard 访问方式：**SSH 远程转发，不直接公网暴露**
+6. 已完成本机只读运行环境核查：OpenClaw 状态、security audit、update status、监听端口、磁盘、内存、工具链、项目测试
+7. 已确认项目代码运行正常，但主机安全条件需要整改
 
 下一轮继续推进：
 1. 按风险优先级整改主机与 OpenClaw 运行条件
 2. 做邮箱池压力均衡器 / 健康看板 / 自动恢复
-3. 继续把注册机接近真实指纹浏览器执行入口
-4. 收敛剩余 dead-code / repo warning
+3. 把 scheduler 从手动 tick 推进到常驻调度
+4. 继续把注册机接近真实指纹浏览器执行入口
+5. 收敛剩余 dead-code / repo warning
 
 当前最关键整改项：
 - `openclaw security audit --deep` 中 2 个 critical 插件问题

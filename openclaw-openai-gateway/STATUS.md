@@ -56,7 +56,12 @@
   - capacity events
   - overview / expand / tiering
 - 自动化目标已具备：discover / try / attempt history / suggestion
-- smoke tests 已扩到通过（`17 + 17 + 32`）
+- 轻运维面板 / 调度入口已具备：
+  - `GET /ops/overview`
+  - `GET /ops/dashboard`
+  - `POST /ops/scheduler/tick`
+- dashboard 定位已明确：**只走 SSH 远程转发，不直接公网暴露**
+- smoke tests 已扩到通过（`17 + 17 + 34`）
 - 已完成新主线设计文档：
   - `VISION_QUOTA_PROXY.md`
   - `DESIGN_PARENT_CHILD_SPACE_MODEL.md`
@@ -72,8 +77,8 @@
 1. 继续把自动注册机从骨架推进成可持续跑的 worker 系统
 2. 把邮箱池做成高质量、可扩张、自动治理的资源层
 3. 把 automation target discovery / try / mailbox / register 串成闭环
-4. 后续再接真实指纹浏览器 API
-5. 在此基础上继续稳定 Codex quota pool 与对外 OpenAI 兼容 API
+4. 用轻 dashboard + scheduler 提升可观测性与可运维性
+5. 后续再接真实指纹浏览器 API，并继续稳定 Codex quota pool 与对外 OpenAI 兼容 API
 
 ---
 
