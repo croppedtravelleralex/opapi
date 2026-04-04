@@ -1,6 +1,7 @@
 pub mod account;
 pub mod codex_quota_source;
 pub mod invite_task;
+pub mod verification_task;
 pub mod model_availability;
 pub mod model_catalog;
 pub mod models;

@@ -131,6 +131,18 @@ impl SqliteModelRepository {
                 risk_score INTEGER NOT NULL DEFAULT 0,
                 dead_lettered INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS verification_tasks (
+                id TEXT PRIMARY KEY,
+                child_account_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                status TEXT NOT NULL,
+                provider TEXT,
+                verification_target TEXT,
+                code_hint TEXT,
+                last_checked_at TEXT,
+                verified_at TEXT,
+                error_reason TEXT
+            );
             CREATE TABLE IF NOT EXISTS quota_snapshots (
                 id TEXT PRIMARY KEY,
                 child_account_id TEXT NOT NULL,

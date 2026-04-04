@@ -774,7 +774,7 @@ async fn codex_auto_register_creates_parent_child_invite_membership_and_proxy_ke
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(payload["status"], "pending_invite");
-    assert_eq!(payload["registration_tasks"].as_array().unwrap().len(), 4);
+    assert_eq!(payload["registration_tasks"].as_array().unwrap().len(), 6);
     assert!(payload["proxy_key_plaintext"].as_str().unwrap().starts_with("opapi_child-example-com_"));
 
     let conn = rusqlite::Connection::open(db_path).unwrap();
@@ -823,7 +823,7 @@ async fn codex_auto_register_dispatch_runs_task_queue_and_warms_pool() {
         .await
         .unwrap();
 
-    for _ in 0..4 {
+    for _ in 0..6 {
         let response = app.clone()
             .oneshot(
                 Request::builder()
@@ -863,7 +863,7 @@ async fn codex_auto_register_dispatch_runs_task_queue_and_warms_pool() {
     let retry_wait_tasks: i64 = conn
         .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child2-example-com' AND status = 'retry_wait'", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(completed_tasks, 3);
+    assert_eq!(completed_tasks, 5);
     assert_eq!(retry_wait_tasks, 1);
     assert_eq!(child_status.0, "warm");
     assert_eq!(child_status.1, "active");
@@ -910,7 +910,7 @@ async fn codex_auto_register_worker_runs_all_pending_tasks_with_fingerprint_brow
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["dispatched"], 4);
+    assert_eq!(payload["dispatched"], 6);
     let results = payload["results"].as_array().unwrap();
     assert!(results.iter().any(|item| item["result"]["runner"] == "fingerprint-browser"));
     assert!(results.iter().any(|item| item["result"]["provider"] == "bitbrowser"));
@@ -924,10 +924,66 @@ async fn codex_auto_register_worker_runs_all_pending_tasks_with_fingerprint_brow
     let retry_wait: i64 = conn
         .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child3-example-com' AND status = 'retry_wait'", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(completed, 3);
+    assert_eq!(completed, 5);
     assert_eq!(retry_wait, 1);
 }
 
+
+#[tokio::test]
+async fn codex_auto_register_dead_letter_recover_requeues_failed_task() {
+    let (app, db_path) = test_app().await;
+
+    let _ = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "parent_email": "parent4@example.com",
+                        "child_email": "child4@example.com"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "UPDATE registration_tasks SET status = 'dead_letter', dead_lettered = 1, attempt_count = 3 WHERE id = 'registration-task:child:child4-example-com:register-account'",
+        [],
+    ).unwrap();
+    drop(conn);
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register/dead-letter/recover")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["requeued"], 1);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let row: (String, i64) = conn.query_row(
+        "SELECT status, attempt_count FROM registration_tasks WHERE id = 'registration-task:child:child4-example-com:register-account'",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ).unwrap();
+    assert_eq!(row.0, "pending");
+    assert_eq!(row.1, 0);
+}
 #[tokio::test]
 async fn sqlite_file_is_seeded() {
     let (app, db_path) = test_app().await;
