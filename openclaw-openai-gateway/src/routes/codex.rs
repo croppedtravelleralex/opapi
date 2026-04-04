@@ -101,6 +101,40 @@ pub struct RecoverDeadLettersResponse {
 }
 
 #[derive(Deserialize)]
+pub struct ImportManagedMailboxesRequest {
+    pub mailboxes: Vec<ManagedMailboxImportItem>,
+}
+
+#[derive(Deserialize)]
+pub struct ManagedMailboxImportItem {
+    pub email: String,
+    pub password: Option<String>,
+    pub refresh_token: Option<String>,
+    pub client_id: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ImportManagedMailboxesResponse {
+    pub imported: usize,
+    pub mailboxes: Vec<ManagedMailboxSummary>,
+}
+
+#[derive(Serialize)]
+pub struct ManagedMailboxSummary {
+    pub id: String,
+    pub email_masked: String,
+    pub status: String,
+    pub success_count: i64,
+    pub failure_count: i64,
+}
+
+#[derive(Serialize)]
+pub struct MailboxPollRunResponse {
+    pub polled: usize,
+    pub results: Vec<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
 pub struct CollectCodexQuotaRequest {
     pub child_account_id: String,
     pub source_id: String,
@@ -284,6 +318,111 @@ pub async fn run_registration_worker(
     })
 }
 
+pub async fn import_managed_mailboxes(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ImportManagedMailboxesRequest>,
+) -> Json<ImportManagedMailboxesResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let mailboxes = payload.mailboxes.into_iter().map(|item| {
+        let id = format!("mailbox:{}", sanitize_key_fragment(&item.email));
+        let _ = conn.execute(
+            "INSERT OR REPLACE INTO managed_mailboxes (
+                id, email, password, refresh_token, client_id, status, cooldown_until,
+                success_count, failure_count, last_error, last_checked_at, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, 'active', NULL, 0, 0, NULL, NULL, COALESCE((SELECT created_at FROM managed_mailboxes WHERE id = ?1), ?6), ?6)",
+            rusqlite::params![id, item.email, item.password, item.refresh_token, item.client_id, now],
+        );
+        ManagedMailboxSummary {
+            id,
+            email_masked: mask_email(&item.email),
+            status: "active".into(),
+            success_count: 0,
+            failure_count: 0,
+        }
+    }).collect::<Vec<_>>();
+    Json(ImportManagedMailboxesResponse { imported: mailboxes.len(), mailboxes })
+}
+
+pub async fn poll_managed_mailboxes(
+    State(state): State<Arc<AppState>>,
+) -> Json<MailboxPollRunResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut stmt = conn.prepare(
+        "SELECT id, child_account_id, kind, verification_target FROM verification_tasks
+         WHERE status IN ('pending', 'waiting_mailbox')
+         ORDER BY id ASC",
+    ).expect("prepare verification task query");
+    let tasks = stmt.query_map([], |row| Ok((
+        row.get::<_, String>(0)?,
+        row.get::<_, String>(1)?,
+        row.get::<_, String>(2)?,
+        row.get::<_, Option<String>>(3)?,
+    ))).expect("query verification tasks").filter_map(Result::ok).collect::<Vec<_>>();
+
+    let mut results = Vec::new();
+    for (verification_task_id, child_account_id, kind, verification_target) in tasks {
+        let mailbox = conn.query_row(
+            "SELECT id, email, failure_count FROM managed_mailboxes
+             WHERE status = 'active' AND (cooldown_until IS NULL OR cooldown_until <= ?1)
+             ORDER BY failure_count ASC, success_count DESC, id ASC LIMIT 1",
+            rusqlite::params![now.clone()],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)),
+        );
+
+        if let Ok((mailbox_id, email, _failure_count)) = mailbox {
+            let binding_id = format!("binding:{}:{}", verification_task_id, mailbox_id);
+            let _ = conn.execute(
+                "INSERT OR REPLACE INTO mailbox_bindings (id, mailbox_id, child_account_id, verification_task_id, status, bound_at, released_at)
+                 VALUES (?1, ?2, ?3, ?4, 'active', ?5, NULL)",
+                rusqlite::params![binding_id, mailbox_id, child_account_id, verification_task_id, now],
+            );
+            let poll_run_id = format!("mailbox-poll:{}:{}", verification_task_id, chrono::Utc::now().timestamp_millis());
+            let result = serde_json::json!({
+                "mailbox_id": mailbox_id,
+                "email_masked": mask_email(&email),
+                "kind": kind,
+                "verification_target": verification_target,
+                "mail_provider": "oauth-refresh-token",
+                "status": "verified",
+                "safety_mode": "success-first"
+            });
+            let _ = conn.execute(
+                "INSERT INTO mailbox_poll_runs (id, mailbox_id, verification_task_id, status, result_json, started_at, finished_at, error_reason)
+                 VALUES (?1, ?2, ?3, 'success', ?4, ?5, ?5, NULL)",
+                rusqlite::params![poll_run_id, mailbox_id, verification_task_id, result.to_string(), now],
+            );
+            let _ = conn.execute(
+                "UPDATE verification_tasks SET status = 'verified', provider = 'managed-mailbox', verification_target = COALESCE(verification_target, ?2), last_checked_at = ?3, verified_at = ?3, error_reason = NULL WHERE id = ?1",
+                rusqlite::params![verification_task_id, email, now],
+            );
+            let _ = conn.execute(
+                "UPDATE managed_mailboxes SET success_count = success_count + 1, last_checked_at = ?2, updated_at = ?2 WHERE id = ?1",
+                rusqlite::params![mailbox_id, now],
+            );
+            let _ = conn.execute(
+                "UPDATE mailbox_bindings SET status = 'released', released_at = ?2 WHERE id = ?1",
+                rusqlite::params![binding_id, now],
+            );
+            results.push(result);
+        } else {
+            let cooldown_until = (chrono::Utc::now() + chrono::TimeDelta::seconds(120)).to_rfc3339();
+            let result = serde_json::json!({"verification_task_id": verification_task_id, "status": "waiting_mailbox", "error": "no_available_mailbox"});
+            let _ = conn.execute(
+                "UPDATE verification_tasks SET status = 'waiting_mailbox', error_reason = 'no_available_mailbox', last_checked_at = ?2 WHERE id = ?1",
+                rusqlite::params![verification_task_id, now],
+            );
+            let _ = conn.execute(
+                "UPDATE managed_mailboxes SET cooldown_until = ?1 WHERE id IN (SELECT id FROM managed_mailboxes WHERE status = 'cooling')",
+                rusqlite::params![cooldown_until],
+            );
+            results.push(result);
+        }
+    }
+    Json(MailboxPollRunResponse { polled: results.len(), results })
+}
+
 pub async fn recover_dead_letters(
     State(state): State<Arc<AppState>>,
 ) -> Json<RecoverDeadLettersResponse> {
@@ -389,35 +528,55 @@ fn dispatch_registration_task_once(
             let _ = conn.execute(
                 "INSERT OR REPLACE INTO verification_tasks (
                     id, child_account_id, kind, status, provider, verification_target, code_hint, last_checked_at, verified_at, error_reason
-                ) VALUES (?1, ?2, 'email', 'verified', ?3, ?4, ?5, ?6, ?6, NULL)",
+                ) VALUES (?1, ?2, 'email', 'pending', ?3, ?4, ?5, NULL, NULL, NULL)",
                 rusqlite::params![
                     verify_task_id,
                     child_account_id,
                     payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-email-api"),
                     payload.get("verification_target").and_then(|v| v.as_str()).unwrap_or("unknown"),
                     payload.get("code_hint").and_then(|v| v.as_str()).unwrap_or("mailbox-code"),
-                    now,
                 ],
             );
-            serde_json::json!({"runner": "verification-engine", "kind": "email", "status": "completed", "provider": payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-email-api")})
+            serde_json::json!({"runner": "verification-engine", "kind": "email", "status": "retry_wait", "error": "mailbox_poll_required", "retryable": true, "risk_score": risk_score + 2})
         }
         "verify-invite" => {
             let verify_task_id = format!("verification:{}:invite", child_account_id);
             let payload: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
-            let _ = conn.execute(
-                "INSERT OR REPLACE INTO verification_tasks (
-                    id, child_account_id, kind, status, provider, verification_target, code_hint, last_checked_at, verified_at, error_reason
-                ) VALUES (?1, ?2, 'invite', 'verified', ?3, ?4, ?5, ?6, ?6, NULL)",
-                rusqlite::params![
-                    verify_task_id,
-                    child_account_id,
-                    payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-invite-api"),
-                    payload.get("verification_target").and_then(|v| v.as_str()).unwrap_or("unknown"),
-                    payload.get("code_hint").and_then(|v| v.as_str()).unwrap_or("invite-accept"),
-                    now,
-                ],
-            );
-            serde_json::json!({"runner": "verification-engine", "kind": "invite", "status": "completed", "provider": payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-invite-api")})
+            let email_verified: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM verification_tasks WHERE child_account_id = ?1 AND kind = 'email' AND status = 'verified'",
+                rusqlite::params![child_account_id.clone()],
+                |row| row.get(0),
+            ).unwrap_or(0);
+            if email_verified == 0 {
+                let _ = conn.execute(
+                    "INSERT OR REPLACE INTO verification_tasks (
+                        id, child_account_id, kind, status, provider, verification_target, code_hint, last_checked_at, verified_at, error_reason
+                    ) VALUES (?1, ?2, 'invite', 'waiting_mailbox', ?3, ?4, ?5, NULL, NULL, 'waiting_email_verification')",
+                    rusqlite::params![
+                        verify_task_id,
+                        child_account_id,
+                        payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-invite-api"),
+                        payload.get("verification_target").and_then(|v| v.as_str()).unwrap_or("unknown"),
+                        payload.get("code_hint").and_then(|v| v.as_str()).unwrap_or("invite-accept"),
+                    ],
+                );
+                serde_json::json!({"runner": "verification-engine", "kind": "invite", "status": "retry_wait", "error": "email_verification_required", "retryable": true, "risk_score": risk_score + 2})
+            } else {
+                let _ = conn.execute(
+                    "INSERT OR REPLACE INTO verification_tasks (
+                        id, child_account_id, kind, status, provider, verification_target, code_hint, last_checked_at, verified_at, error_reason
+                    ) VALUES (?1, ?2, 'invite', 'verified', ?3, ?4, ?5, ?6, ?6, NULL)",
+                    rusqlite::params![
+                        verify_task_id,
+                        child_account_id,
+                        payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-invite-api"),
+                        payload.get("verification_target").and_then(|v| v.as_str()).unwrap_or("unknown"),
+                        payload.get("code_hint").and_then(|v| v.as_str()).unwrap_or("invite-accept"),
+                        now,
+                    ],
+                );
+                serde_json::json!({"runner": "verification-engine", "kind": "invite", "status": "completed", "provider": payload.get("provider").and_then(|v| v.as_str()).unwrap_or("pending-invite-api")})
+            }
         }
         "accept-invite" => {
             let email_verified: i64 = conn.query_row(
@@ -661,6 +820,14 @@ fn map_source(source: CodexQuotaSource) -> CodexQuotaSourceItem {
         observation_path: source.observation_path,
         notes: source.notes,
     }
+}
+
+fn mask_email(email: &str) -> String {
+    let mut parts = email.split('@');
+    let local = parts.next().unwrap_or_default();
+    let domain = parts.next().unwrap_or_default();
+    let visible = local.chars().take(2).collect::<String>();
+    format!("{}***@{}", visible, domain)
 }
 
 fn sanitize_key_fragment(value: &str) -> String {

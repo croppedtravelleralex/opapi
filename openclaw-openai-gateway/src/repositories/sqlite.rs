@@ -143,6 +143,40 @@ impl SqliteModelRepository {
                 verified_at TEXT,
                 error_reason TEXT
             );
+            CREATE TABLE IF NOT EXISTS managed_mailboxes (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                password TEXT,
+                refresh_token TEXT,
+                client_id TEXT,
+                status TEXT NOT NULL DEFAULT 'active',
+                cooldown_until TEXT,
+                success_count INTEGER NOT NULL DEFAULT 0,
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                last_checked_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS mailbox_poll_runs (
+                id TEXT PRIMARY KEY,
+                mailbox_id TEXT NOT NULL,
+                verification_task_id TEXT,
+                status TEXT NOT NULL,
+                result_json TEXT,
+                started_at TEXT NOT NULL,
+                finished_at TEXT,
+                error_reason TEXT
+            );
+            CREATE TABLE IF NOT EXISTS mailbox_bindings (
+                id TEXT PRIMARY KEY,
+                mailbox_id TEXT NOT NULL,
+                child_account_id TEXT NOT NULL,
+                verification_task_id TEXT,
+                status TEXT NOT NULL,
+                bound_at TEXT NOT NULL,
+                released_at TEXT
+            );
             CREATE TABLE IF NOT EXISTS quota_snapshots (
                 id TEXT PRIMARY KEY,
                 child_account_id TEXT NOT NULL,

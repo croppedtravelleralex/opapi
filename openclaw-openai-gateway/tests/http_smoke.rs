@@ -863,8 +863,8 @@ async fn codex_auto_register_dispatch_runs_task_queue_and_warms_pool() {
     let retry_wait_tasks: i64 = conn
         .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child2-example-com' AND status = 'retry_wait'", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(completed_tasks, 5);
-    assert_eq!(retry_wait_tasks, 1);
+    assert_eq!(completed_tasks, 3);
+    assert_eq!(retry_wait_tasks, 3);
     assert_eq!(child_status.0, "warm");
     assert_eq!(child_status.1, "active");
     assert_eq!(quota_count, 1);
@@ -924,8 +924,8 @@ async fn codex_auto_register_worker_runs_all_pending_tasks_with_fingerprint_brow
     let retry_wait: i64 = conn
         .query_row("SELECT COUNT(*) FROM registration_tasks WHERE child_account_id = 'child:child3-example-com' AND status = 'retry_wait'", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(completed, 5);
-    assert_eq!(retry_wait, 1);
+    assert_eq!(completed, 3);
+    assert_eq!(retry_wait, 3);
 }
 
 
@@ -983,6 +983,74 @@ async fn codex_auto_register_dead_letter_recover_requeues_failed_task() {
     ).unwrap();
     assert_eq!(row.0, "pending");
     assert_eq!(row.1, 0);
+}
+
+#[tokio::test]
+async fn mailbox_import_and_poll_verifies_email_tasks() {
+    let (app, db_path) = test_app().await;
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/mailboxes/import")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "mailboxes": [
+                            {
+                                "email": "alpha@example.com",
+                                "password": "pw1",
+                                "refresh_token": "rt1",
+                                "client_id": "cid1"
+                            },
+                            {
+                                "email": "beta@example.com",
+                                "password": "pw2",
+                                "refresh_token": "rt2",
+                                "client_id": "cid2"
+                            }
+                        ]
+                    }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute(
+        "INSERT INTO verification_tasks (id, child_account_id, kind, status, provider, verification_target, code_hint, last_checked_at, verified_at, error_reason) VALUES ('verification:child-demo:email', 'child-demo', 'email', 'pending', 'managed-mailbox', 'alpha@example.com', 'mailbox-code', NULL, NULL, NULL)",
+        [],
+    ).unwrap();
+    drop(conn);
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/mailboxes/poll/run")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["polled"], 1);
+    assert_eq!(payload["results"][0]["status"], "verified");
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let mailbox_count: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes", [], |row| row.get(0)).unwrap();
+    let poll_count: i64 = conn.query_row("SELECT COUNT(*) FROM mailbox_poll_runs", [], |row| row.get(0)).unwrap();
+    let verified_count: i64 = conn.query_row("SELECT COUNT(*) FROM verification_tasks WHERE status = 'verified'", [], |row| row.get(0)).unwrap();
+    assert_eq!(mailbox_count, 2);
+    assert_eq!(poll_count, 1);
+    assert_eq!(verified_count, 1);
 }
 #[tokio::test]
 async fn sqlite_file_is_seeded() {
