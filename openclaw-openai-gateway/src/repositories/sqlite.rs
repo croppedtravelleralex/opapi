@@ -141,7 +141,11 @@ impl SqliteModelRepository {
                 code_hint TEXT,
                 last_checked_at TEXT,
                 verified_at TEXT,
-                error_reason TEXT
+                error_reason TEXT,
+                state_detail TEXT,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                next_check_at TEXT,
+                mailbox_id TEXT
             );
             CREATE TABLE IF NOT EXISTS managed_mailboxes (
                 id TEXT PRIMARY KEY,

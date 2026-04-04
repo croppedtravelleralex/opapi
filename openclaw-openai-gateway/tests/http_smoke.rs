@@ -1042,15 +1042,73 @@ async fn mailbox_import_and_poll_verifies_email_tasks() {
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(payload["polled"], 1);
-    assert_eq!(payload["results"][0]["status"], "verified");
+    assert_eq!(payload["results"][0]["status"], "checked");
 
     let conn = rusqlite::Connection::open(db_path).unwrap();
     let mailbox_count: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes", [], |row| row.get(0)).unwrap();
     let poll_count: i64 = conn.query_row("SELECT COUNT(*) FROM mailbox_poll_runs", [], |row| row.get(0)).unwrap();
-    let verified_count: i64 = conn.query_row("SELECT COUNT(*) FROM verification_tasks WHERE status = 'verified'", [], |row| row.get(0)).unwrap();
+    let checked_count: i64 = conn.query_row("SELECT COUNT(*) FROM verification_tasks WHERE status = 'checked'", [], |row| row.get(0)).unwrap();
     assert_eq!(mailbox_count, 2);
     assert_eq!(poll_count, 1);
-    assert_eq!(verified_count, 1);
+    assert_eq!(checked_count, 1);
+}
+
+#[tokio::test]
+async fn codex_registration_autoloop_runs_worker_and_mailbox_poll() {
+    let (app, _db_path) = test_app().await;
+
+    let _ = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/mailboxes/import")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "mailboxes": [{
+                        "email": "loop@example.com",
+                        "password": "pw",
+                        "refresh_token": "rt",
+                        "client_id": "cid"
+                    }]
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let _ = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "parent_email": "parent5@example.com",
+                    "child_email": "child5@example.com"
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register/autoloop/run")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(payload["worker"]["dispatched"].as_i64().unwrap() >= 1);
+    assert!(payload["mailbox_poll"]["polled"].as_i64().unwrap() >= 1);
 }
 #[tokio::test]
 async fn sqlite_file_is_seeded() {
