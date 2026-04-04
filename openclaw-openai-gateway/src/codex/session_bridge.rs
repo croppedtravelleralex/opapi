@@ -154,12 +154,19 @@ impl CodexSessionBridge {
                     .as_ref()
                     .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
                 let payload = client.proxy_chat(model, user_text).await?;
+                let runtime_namespace = find_runtime_hint(&payload, "session_namespace")
+                    .unwrap_or_else(|| "none".to_string());
+                let runtime_key_hint = find_runtime_hint(&payload, "session_key_hint")
+                    .unwrap_or_else(|| "none".to_string());
                 extract_chat_text(&payload).map(|text| {
                     format!(
-                        "openclaw-ws-session-bridge adapter={} source={} page={} output={}",
+                        "openclaw-ws-session-bridge adapter={} source={} page={} runtime_source={} runtime_session_namespace={} runtime_session_key_hint={} output={}",
                         adapter_name(adapter),
                         source_id,
                         source_page,
+                        describe_runtime_hint_source(&payload),
+                        runtime_namespace,
+                        runtime_key_hint,
                         text
                     )
                 })
@@ -210,12 +217,19 @@ impl CodexSessionBridge {
                     .as_ref()
                     .ok_or_else(|| "missing_openclaw_ws_client".to_string())?;
                 let payload = client.proxy_response(model, input).await?;
+                let runtime_namespace = find_runtime_hint(&payload, "session_namespace")
+                    .unwrap_or_else(|| "none".to_string());
+                let runtime_key_hint = find_runtime_hint(&payload, "session_key_hint")
+                    .unwrap_or_else(|| "none".to_string());
                 extract_response_text(&payload).map(|text| {
                     format!(
-                        "openclaw-ws-session-bridge adapter={} source={} page={} output={}",
+                        "openclaw-ws-session-bridge adapter={} source={} page={} runtime_source={} runtime_session_namespace={} runtime_session_key_hint={} output={}",
                         adapter_name(adapter),
                         source_id,
                         source_page,
+                        describe_runtime_hint_source(&payload),
+                        runtime_namespace,
+                        runtime_key_hint,
                         text
                     )
                 })
@@ -254,6 +268,50 @@ fn apply_runtime_hints_from_payload(ctx: &mut CodexAppRequestContext, payload: &
     }
     if ctx.runtime_session_key_hint.is_none() {
         ctx.runtime_session_key_hint = find_runtime_hint(payload, "session_key_hint");
+    }
+}
+
+fn describe_runtime_hint_source(payload: &Value) -> &'static str {
+    if payload.get("runtime").is_some() {
+        "top-level-runtime"
+    } else if payload.get("handshake").is_some() {
+        "top-level-handshake"
+    } else if payload
+        .get("choices")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("message"))
+        .and_then(|v| v.get("runtime"))
+        .is_some()
+    {
+        "chat-message-runtime"
+    } else if payload
+        .get("choices")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("message"))
+        .and_then(|v| v.get("handshake"))
+        .is_some()
+    {
+        "chat-message-handshake"
+    } else if payload
+        .get("output")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("content"))
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("runtime"))
+        .is_some()
+    {
+        "response-content-runtime"
+    } else if payload
+        .get("output")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("content"))
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("handshake"))
+        .is_some()
+    {
+        "response-content-handshake"
+    } else {
+        "none"
     }
 }
 
@@ -459,5 +517,21 @@ mod tests {
         apply_runtime_hints_from_payload(&mut ctx, &payload);
         assert_eq!(ctx.runtime_session_namespace.as_deref(), Some("nested-ns"));
         assert_eq!(ctx.runtime_session_key_hint.as_deref(), Some("nested-key"));
+    }
+
+    #[test]
+    fn describe_runtime_hint_source_reports_nested_chat_runtime() {
+        let payload = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "runtime": {
+                        "session_namespace": "chat-ns",
+                        "session_key_hint": "chat-key"
+                    }
+                }
+            }]
+        });
+
+        assert_eq!(describe_runtime_hint_source(&payload), "chat-message-runtime");
     }
 }

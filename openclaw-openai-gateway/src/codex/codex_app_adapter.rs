@@ -51,9 +51,12 @@ impl CodexAppAdapter {
                 handshake.freshness_seconds,
             )
             .await?;
+        let runtime_namespace = extract_runtime_hint(&payload, "session_namespace");
+        let runtime_key_hint = extract_runtime_hint(&payload, "session_key_hint");
+        let runtime_source = describe_runtime_hint_source(&payload);
         extract_chat_text(&payload).map(|text| {
             format!(
-                "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} via openclaw-ws output={}",
+                "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} runtime_source={} runtime_session_namespace={} runtime_session_key_hint={} via openclaw-ws output={}",
                 ctx.child_account_id,
                 ctx.observed_at,
                 ctx.source_id,
@@ -64,6 +67,9 @@ impl CodexAppAdapter {
                     .freshness_seconds
                     .map(|v| v.to_string())
                     .unwrap_or_else(|| "unknown".to_string()),
+                runtime_source,
+                runtime_namespace.unwrap_or_else(|| "none".to_string()),
+                runtime_key_hint.unwrap_or_else(|| "none".to_string()),
                 text
             )
         })
@@ -89,9 +95,12 @@ impl CodexAppAdapter {
                 handshake.freshness_seconds,
             )
             .await?;
+        let runtime_namespace = extract_runtime_hint(&payload, "session_namespace");
+        let runtime_key_hint = extract_runtime_hint(&payload, "session_key_hint");
+        let runtime_source = describe_runtime_hint_source(&payload);
         extract_response_text(&payload).map(|text| {
             format!(
-                "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} via openclaw-ws output={}",
+                "codex-app-adapter child={} observed_at={} source={} page={} session_namespace={} session_key_hint={} freshness_seconds={} runtime_source={} runtime_session_namespace={} runtime_session_key_hint={} via openclaw-ws output={}",
                 ctx.child_account_id,
                 ctx.observed_at,
                 ctx.source_id,
@@ -102,9 +111,103 @@ impl CodexAppAdapter {
                     .freshness_seconds
                     .map(|v| v.to_string())
                     .unwrap_or_else(|| "unknown".to_string()),
+                runtime_source,
+                runtime_namespace.unwrap_or_else(|| "none".to_string()),
+                runtime_key_hint.unwrap_or_else(|| "none".to_string()),
                 text
             )
         })
+    }
+}
+
+fn extract_runtime_hint(payload: &Value, field: &str) -> Option<String> {
+    payload
+        .get("runtime")
+        .and_then(|v| v.get(field))
+        .and_then(|v| v.as_str())
+        .or_else(|| payload.get("handshake").and_then(|v| v.get(field)).and_then(|v| v.as_str()))
+        .or_else(|| {
+            payload
+                .get("choices")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.get("runtime"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("choices")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("message"))
+                .and_then(|v| v.get("handshake"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("output")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("content"))
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("runtime"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| {
+            payload
+                .get("output")
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("content"))
+                .and_then(|v| v.get(0))
+                .and_then(|v| v.get("handshake"))
+                .and_then(|v| v.get(field))
+                .and_then(|v| v.as_str())
+        })
+        .map(|v| v.to_string())
+}
+
+fn describe_runtime_hint_source(payload: &Value) -> &'static str {
+    if payload.get("runtime").is_some() {
+        "top-level-runtime"
+    } else if payload.get("handshake").is_some() {
+        "top-level-handshake"
+    } else if payload
+        .get("choices")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("message"))
+        .and_then(|v| v.get("runtime"))
+        .is_some()
+    {
+        "chat-message-runtime"
+    } else if payload
+        .get("choices")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("message"))
+        .and_then(|v| v.get("handshake"))
+        .is_some()
+    {
+        "chat-message-handshake"
+    } else if payload
+        .get("output")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("content"))
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("runtime"))
+        .is_some()
+    {
+        "response-content-runtime"
+    } else if payload
+        .get("output")
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("content"))
+        .and_then(|v| v.get(0))
+        .and_then(|v| v.get("handshake"))
+        .is_some()
+    {
+        "response-content-handshake"
+    } else {
+        "none"
     }
 }
 

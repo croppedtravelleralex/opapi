@@ -1,8 +1,6 @@
 use crate::domain::{
-    model_availability::ModelAvailability,
     models::ModelCatalogEntry,
     provider::ProviderDescriptor,
-    provider_capability::ProviderCapability,
 };
 use crate::governance::audit::AuditEvent;
 use crate::repositories::store::InMemoryStore;
