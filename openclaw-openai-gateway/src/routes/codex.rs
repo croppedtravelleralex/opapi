@@ -172,6 +172,33 @@ pub struct ManagedMailboxSummary {
     pub status: String,
     pub success_count: i64,
     pub failure_count: i64,
+    pub quality_score: i64,
+    pub expansion_tier: String,
+    pub reservation_count: i64,
+}
+
+#[derive(Serialize)]
+pub struct MailboxPoolOverviewResponse {
+    pub total: i64,
+    pub active: i64,
+    pub cooling: i64,
+    pub average_quality_score: f64,
+    pub seed_count: i64,
+    pub scaled_count: i64,
+    pub premium_count: i64,
+    pub mailboxes: Vec<ManagedMailboxSummary>,
+}
+
+#[derive(Deserialize)]
+pub struct ExpandMailboxPoolRequest {
+    pub mailbox_ids: Vec<String>,
+    pub expansion_tier: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ExpandMailboxPoolResponse {
+    pub updated: usize,
+    pub tier: String,
 }
 
 #[derive(Serialize)]
@@ -480,8 +507,8 @@ pub async fn import_managed_mailboxes(
         let _ = conn.execute(
             "INSERT OR REPLACE INTO managed_mailboxes (
                 id, email, password, refresh_token, client_id, status, cooldown_until,
-                success_count, failure_count, last_error, last_checked_at, created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, 'active', NULL, 0, 0, NULL, NULL, COALESCE((SELECT created_at FROM managed_mailboxes WHERE id = ?1), ?6), ?6)",
+                success_count, failure_count, quality_score, expansion_tier, reservation_count, last_error, last_checked_at, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, 'active', NULL, 0, 0, COALESCE((SELECT quality_score FROM managed_mailboxes WHERE id = ?1), 60), COALESCE((SELECT expansion_tier FROM managed_mailboxes WHERE id = ?1), 'seed'), COALESCE((SELECT reservation_count FROM managed_mailboxes WHERE id = ?1), 0), NULL, NULL, COALESCE((SELECT created_at FROM managed_mailboxes WHERE id = ?1), ?6), ?6)",
             rusqlite::params![id, item.email, item.password, item.refresh_token, item.client_id, now],
         );
         ManagedMailboxSummary {
@@ -490,6 +517,9 @@ pub async fn import_managed_mailboxes(
             status: "active".into(),
             success_count: 0,
             failure_count: 0,
+            quality_score: 60,
+            expansion_tier: "seed".into(),
+            reservation_count: 0,
         }
     }).collect::<Vec<_>>();
     Json(ImportManagedMailboxesResponse { imported: mailboxes.len(), mailboxes })
@@ -517,14 +547,14 @@ pub async fn poll_managed_mailboxes(
     let mut results = Vec::new();
     for (verification_task_id, child_account_id, kind, verification_target, verification_attempt_count) in tasks {
         let mailbox = conn.query_row(
-            "SELECT id, email, failure_count FROM managed_mailboxes
+            "SELECT id, email, failure_count, quality_score, expansion_tier, reservation_count FROM managed_mailboxes
              WHERE status = 'active' AND (cooldown_until IS NULL OR cooldown_until <= ?1)
-             ORDER BY failure_count ASC, success_count DESC, id ASC LIMIT 1",
+             ORDER BY quality_score DESC, failure_count ASC, reservation_count ASC, success_count DESC, id ASC LIMIT 1",
             rusqlite::params![now.clone()],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)),
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, i64>(3)?, row.get::<_, String>(4)?, row.get::<_, i64>(5)?)),
         );
 
-        if let Ok((mailbox_id, email, _failure_count)) = mailbox {
+        if let Ok((mailbox_id, email, _failure_count, quality_score, expansion_tier, reservation_count)) = mailbox {
             let binding_id = format!("binding:{}:{}", verification_task_id, mailbox_id);
             let _ = conn.execute(
                 "INSERT OR REPLACE INTO mailbox_bindings (id, mailbox_id, child_account_id, verification_task_id, status, bound_at, released_at)
@@ -545,6 +575,9 @@ pub async fn poll_managed_mailboxes(
                 "kind": kind,
                 "verification_target": verification_target,
                 "mail_provider": "oauth-refresh-token",
+                "mailbox_quality_score": quality_score,
+                "mailbox_expansion_tier": expansion_tier,
+                "mailbox_reservation_count": reservation_count,
                 "status": final_status,
                 "safety_mode": "success-first"
             });
@@ -562,7 +595,7 @@ pub async fn poll_managed_mailboxes(
                 rusqlite::params![verification_task_id, final_status, email, now, state_detail, next_check_at, mailbox_id],
             );
             let _ = conn.execute(
-                "UPDATE managed_mailboxes SET success_count = success_count + 1, last_checked_at = ?2, updated_at = ?2 WHERE id = ?1",
+                "UPDATE managed_mailboxes SET success_count = success_count + 1, quality_score = MIN(100, quality_score + 4), reservation_count = reservation_count + 1, last_checked_at = ?2, updated_at = ?2 WHERE id = ?1",
                 rusqlite::params![mailbox_id, now],
             );
             let _ = conn.execute(
@@ -578,13 +611,62 @@ pub async fn poll_managed_mailboxes(
                 rusqlite::params![verification_task_id, now, next_check_at],
             );
             let _ = conn.execute(
-                "UPDATE managed_mailboxes SET failure_count = failure_count + 1, updated_at = ?2 WHERE id IN (SELECT id FROM managed_mailboxes WHERE status = 'active')",
+                "UPDATE managed_mailboxes SET failure_count = failure_count + 1, quality_score = MAX(0, quality_score - 6), cooldown_until = ?1, last_error = 'no_available_mailbox', updated_at = ?2 WHERE id IN (SELECT id FROM managed_mailboxes WHERE status = 'active')",
                 rusqlite::params![next_check_at, now],
             );
             results.push(result);
         }
     }
     Json(MailboxPollRunResponse { polled: results.len(), results })
+}
+
+pub async fn get_mailbox_pool_overview(
+    State(state): State<Arc<AppState>>,
+) -> Json<MailboxPoolOverviewResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let total: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes", [], |row| row.get(0)).unwrap_or(0);
+    let active: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes WHERE status = 'active'", [], |row| row.get(0)).unwrap_or(0);
+    let cooling: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes WHERE cooldown_until IS NOT NULL", [], |row| row.get(0)).unwrap_or(0);
+    let average_quality_score: f64 = conn.query_row("SELECT COALESCE(AVG(quality_score), 0) FROM managed_mailboxes", [], |row| row.get(0)).unwrap_or(0.0);
+    let seed_count: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes WHERE expansion_tier = 'seed'", [], |row| row.get(0)).unwrap_or(0);
+    let scaled_count: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes WHERE expansion_tier = 'scaled'", [], |row| row.get(0)).unwrap_or(0);
+    let premium_count: i64 = conn.query_row("SELECT COUNT(*) FROM managed_mailboxes WHERE expansion_tier = 'premium'", [], |row| row.get(0)).unwrap_or(0);
+    let mut stmt = conn.prepare("SELECT id, email, status, success_count, failure_count, quality_score, expansion_tier, reservation_count FROM managed_mailboxes ORDER BY quality_score DESC, success_count DESC, id ASC LIMIT 20").expect("prepare mailbox overview");
+    let mailboxes = stmt.query_map([], |row| Ok(ManagedMailboxSummary {
+        id: row.get(0)?,
+        email_masked: mask_email(&row.get::<_, String>(1)?),
+        status: row.get(2)?,
+        success_count: row.get(3)?,
+        failure_count: row.get(4)?,
+        quality_score: row.get(5)?,
+        expansion_tier: row.get(6)?,
+        reservation_count: row.get(7)?,
+    })).expect("query mailbox overview").filter_map(Result::ok).collect::<Vec<_>>();
+    Json(MailboxPoolOverviewResponse { total, active, cooling, average_quality_score, seed_count, scaled_count, premium_count, mailboxes })
+}
+
+pub async fn expand_mailbox_pool(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ExpandMailboxPoolRequest>,
+) -> Json<ExpandMailboxPoolResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let tier = payload.expansion_tier.unwrap_or_else(|| "scaled".into());
+    let mut updated = 0usize;
+    for mailbox_id in payload.mailbox_ids {
+        let changed = conn.execute(
+            "UPDATE managed_mailboxes SET expansion_tier = ?2, quality_score = MIN(100, quality_score + 8), updated_at = ?3 WHERE id = ?1",
+            rusqlite::params![mailbox_id.clone(), tier.clone(), now.clone()],
+        ).unwrap_or(0);
+        if changed > 0 {
+            updated += 1;
+            let _ = conn.execute(
+                "INSERT INTO mailbox_capacity_events (id, mailbox_id, event_type, delta, detail_json, created_at) VALUES (?1, ?2, 'tier-upgrade', 8, ?3, ?4)",
+                rusqlite::params![format!("mailbox-capacity:{}:{}", mailbox_id, chrono::Utc::now().timestamp_millis()), mailbox_id, serde_json::json!({"tier": tier}).to_string(), now.clone()],
+            );
+        }
+    }
+    Json(ExpandMailboxPoolResponse { updated, tier })
 }
 
 pub async fn run_registration_autoloop(

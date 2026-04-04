@@ -22,6 +22,8 @@ pub fn build_app(state: Arc<AppState>) -> Router {
         .route("/v1/codex/automation-targets/try", post(codex::try_automation_target))
         .route("/v1/codex/auto-register", post(codex::auto_register_codex_account))
         .route("/v1/mailboxes/import", post(codex::import_managed_mailboxes))
+        .route("/v1/mailboxes/overview", get(codex::get_mailbox_pool_overview))
+        .route("/v1/mailboxes/expand", post(codex::expand_mailbox_pool))
         .route("/v1/mailboxes/poll/run", post(codex::poll_managed_mailboxes))
         .route("/v1/codex/auto-register/autoloop/run", post(codex::run_registration_autoloop))
         .route("/v1/codex/auto-register/dispatch", post(codex::dispatch_registration_task))

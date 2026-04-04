@@ -157,10 +157,21 @@ impl SqliteModelRepository {
                 cooldown_until TEXT,
                 success_count INTEGER NOT NULL DEFAULT 0,
                 failure_count INTEGER NOT NULL DEFAULT 0,
+                quality_score INTEGER NOT NULL DEFAULT 50,
+                expansion_tier TEXT NOT NULL DEFAULT 'seed',
+                reservation_count INTEGER NOT NULL DEFAULT 0,
                 last_error TEXT,
                 last_checked_at TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS mailbox_capacity_events (
+                id TEXT PRIMARY KEY,
+                mailbox_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                delta INTEGER NOT NULL DEFAULT 0,
+                detail_json TEXT,
+                created_at TEXT NOT NULL
             );
             CREATE TABLE IF NOT EXISTS mailbox_poll_runs (
                 id TEXT PRIMARY KEY,

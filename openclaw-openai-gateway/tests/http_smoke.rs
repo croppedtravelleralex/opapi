@@ -1187,6 +1187,74 @@ async fn codex_automation_target_discover_and_try_records_success_and_failure() 
     assert_eq!(needs_fix, "needs_optimization");
     assert_eq!(attempts, 2);
 }
+
+#[tokio::test]
+async fn mailbox_pool_overview_and_expand_track_quality() {
+    let (app, db_path) = test_app().await;
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/mailboxes/import")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "mailboxes": [{
+                        "email": "quality@example.com",
+                        "password": "pw",
+                        "refresh_token": "rt",
+                        "client_id": "cid"
+                    }]
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let overview = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/mailboxes/overview")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(overview.status(), StatusCode::OK);
+    let overview_body = to_bytes(overview.into_body(), usize::MAX).await.unwrap();
+    let overview_payload: serde_json::Value = serde_json::from_slice(&overview_body).unwrap();
+    assert_eq!(overview_payload["total"], 1);
+    let mailbox_id = overview_payload["mailboxes"][0]["id"].as_str().unwrap().to_string();
+    assert_eq!(overview_payload["mailboxes"][0]["quality_score"], 60);
+
+    let expand = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/mailboxes/expand")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "mailbox_ids": [mailbox_id],
+                    "expansion_tier": "premium"
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(expand.status(), StatusCode::OK);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let row: (i64, String) = conn.query_row("SELECT quality_score, expansion_tier FROM managed_mailboxes WHERE email = 'quality@example.com'", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    let events: i64 = conn.query_row("SELECT COUNT(*) FROM mailbox_capacity_events", [], |row| row.get(0)).unwrap();
+    assert_eq!(row.0, 68);
+    assert_eq!(row.1, "premium");
+    assert_eq!(events, 1);
+}
 #[tokio::test]
 async fn sqlite_file_is_seeded() {
     let (app, db_path) = test_app().await;
