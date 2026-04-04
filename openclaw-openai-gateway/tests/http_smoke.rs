@@ -735,6 +735,62 @@ async fn routing_explain_uses_capability_and_availability() {
 }
 
 #[tokio::test]
+async fn codex_auto_register_creates_parent_child_invite_membership_and_proxy_key() {
+    let (app, db_path) = test_app().await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/auto-register")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "parent_email": "parent@example.com",
+                        "child_email": "child@example.com",
+                        "space_name": "Auto Space",
+                        "fingerprint_profile_id": "fp-demo-1",
+                        "proxy_key_label": "child-demo-key",
+                        "allowed_models": ["gpt-4o-mini", "openclaw-default"]
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["status"], "pending_invite");
+    assert!(payload["proxy_key_plaintext"].as_str().unwrap().starts_with("opapi_child-example-com_"));
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let parent_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM parent_accounts WHERE email = 'parent@example.com'", [], |row| row.get(0))
+        .unwrap();
+    let child_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM child_accounts WHERE email = 'child@example.com'", [], |row| row.get(0))
+        .unwrap();
+    let invite_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM invite_tasks WHERE child_account_id = 'child:child-example-com'", [], |row| row.get(0))
+        .unwrap();
+    let membership_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM space_memberships WHERE child_account_id = 'child:child-example-com'", [], |row| row.get(0))
+        .unwrap();
+    let proxy_key_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM proxy_api_keys WHERE owner = 'child:child-example-com'", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(parent_count, 1);
+    assert_eq!(child_count, 1);
+    assert_eq!(invite_count, 1);
+    assert_eq!(membership_count, 1);
+    assert_eq!(proxy_key_count, 1);
+}
+
+#[tokio::test]
 async fn sqlite_file_is_seeded() {
     let (app, db_path) = test_app().await;
     let _ = app;

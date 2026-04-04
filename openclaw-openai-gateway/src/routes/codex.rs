@@ -44,6 +44,27 @@ pub struct CodexQuotaOverviewResponse {
 }
 
 #[derive(Deserialize)]
+pub struct AutoRegisterCodexAccountRequest {
+    pub parent_email: String,
+    pub child_email: String,
+    pub space_name: Option<String>,
+    pub fingerprint_profile_id: Option<String>,
+    pub proxy_key_label: Option<String>,
+    pub allowed_models: Option<Vec<String>>,
+}
+
+#[derive(Serialize)]
+pub struct AutoRegisterCodexAccountResponse {
+    pub parent_account_id: String,
+    pub child_account_id: String,
+    pub invite_task_id: String,
+    pub space_membership_id: String,
+    pub proxy_key_id: String,
+    pub proxy_key_plaintext: String,
+    pub status: String,
+}
+
+#[derive(Deserialize)]
 pub struct CollectCodexQuotaRequest {
     pub child_account_id: String,
     pub source_id: String,
@@ -76,6 +97,96 @@ pub struct CodexPersistedPoolMemberItem {
     pub pool_status: String,
     pub admission_level: String,
     pub weight: i64,
+}
+
+pub async fn auto_register_codex_account(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<AutoRegisterCodexAccountRequest>,
+) -> Json<AutoRegisterCodexAccountResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let parent_account_id = format!("parent:{}", sanitize_key_fragment(&payload.parent_email));
+    let child_account_id = format!("child:{}", sanitize_key_fragment(&payload.child_email));
+    let invite_task_id = format!("invite:{}:{}", parent_account_id, child_account_id);
+    let space_membership_id = format!("membership:{}:{}", parent_account_id, child_account_id);
+    let proxy_key_id = format!("proxy-key:{}", child_account_id);
+    let proxy_key_plaintext = format!(
+        "opapi_{}_{}",
+        sanitize_key_fragment(&payload.child_email),
+        chrono::Utc::now().timestamp_millis()
+    );
+    let allowed_models = serde_json::to_string(
+        &payload
+            .allowed_models
+            .clone()
+            .unwrap_or_else(|| state.config.models.clone()),
+    )
+    .unwrap_or_else(|_| "[]".into());
+
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO parent_accounts (
+            id, email, space_name, status, fingerprint_profile_id, invite_enabled, risk_level, last_login_at
+        ) VALUES (?1, ?2, ?3, 'active', ?4, 1, 'normal', ?5)",
+        rusqlite::params![
+            parent_account_id,
+            payload.parent_email,
+            payload.space_name.unwrap_or_else(|| "Codex Auto Space".into()),
+            payload.fingerprint_profile_id,
+            now,
+        ],
+    );
+
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO child_accounts (
+            id, email, parent_account_id, status, space_verified, pool_status, risk_level, fingerprint_profile_id, last_login_at
+        ) VALUES (?1, ?2, ?3, 'warming', 0, 'new', 'normal', ?4, ?5)",
+        rusqlite::params![
+            child_account_id,
+            payload.child_email,
+            parent_account_id,
+            payload.fingerprint_profile_id,
+            now,
+        ],
+    );
+
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO invite_tasks (
+            id, parent_account_id, child_account_id, status, sent_at, accepted_at, error_reason
+        ) VALUES (?1, ?2, ?3, 'pending', ?4, NULL, NULL)",
+        rusqlite::params![invite_task_id, parent_account_id, child_account_id, now],
+    );
+
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO space_memberships (
+            id, parent_account_id, child_account_id, joined, verified, verified_at
+        ) VALUES (?1, ?2, ?3, 0, 0, NULL)",
+        rusqlite::params![space_membership_id, parent_account_id, child_account_id],
+    );
+
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO proxy_api_keys (
+            id, label, hashed_key, owner, status, rate_limit, quota_limit, allowed_models_json
+        ) VALUES (?1, ?2, ?3, ?4, 'active', 60, 1000, ?5)",
+        rusqlite::params![
+            proxy_key_id,
+            payload
+                .proxy_key_label
+                .unwrap_or_else(|| format!("auto-register:{}", child_account_id)),
+            proxy_key_plaintext,
+            child_account_id,
+            allowed_models,
+        ],
+    );
+
+    Json(AutoRegisterCodexAccountResponse {
+        parent_account_id,
+        child_account_id,
+        invite_task_id,
+        space_membership_id,
+        proxy_key_id,
+        proxy_key_plaintext,
+        status: "pending_invite".into(),
+    })
 }
 
 pub async fn collect_codex_quota(
@@ -200,6 +311,15 @@ fn map_source(source: CodexQuotaSource) -> CodexQuotaSourceItem {
         observation_path: source.observation_path,
         notes: source.notes,
     }
+}
+
+fn sanitize_key_fragment(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { '-' })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
 }
 
 fn query_i64(dsn: &str, sql: &str) -> Result<i64, String> {
