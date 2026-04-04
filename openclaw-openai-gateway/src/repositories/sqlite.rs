@@ -181,6 +181,33 @@ impl SqliteModelRepository {
                 bound_at TEXT NOT NULL,
                 released_at TEXT
             );
+            CREATE TABLE IF NOT EXISTS automation_targets (
+                id TEXT PRIMARY KEY,
+                target_key TEXT NOT NULL UNIQUE,
+                target_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                capability_score INTEGER NOT NULL DEFAULT 0,
+                last_attempt_status TEXT,
+                suggested_fix TEXT,
+                last_success_at TEXT,
+                last_failure_at TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS automation_attempts (
+                id TEXT PRIMARY KEY,
+                automation_target_id TEXT NOT NULL,
+                attempt_kind TEXT NOT NULL,
+                status TEXT NOT NULL,
+                child_account_id TEXT,
+                parent_account_id TEXT,
+                result_json TEXT,
+                suggested_fix TEXT,
+                report_json TEXT,
+                started_at TEXT NOT NULL,
+                finished_at TEXT
+            );
             CREATE TABLE IF NOT EXISTS quota_snapshots (
                 id TEXT PRIMARY KEY,
                 child_account_id TEXT NOT NULL,

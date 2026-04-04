@@ -18,6 +18,8 @@ pub fn build_app(state: Arc<AppState>) -> Router {
         .route("/v1/providers", get(providers::list_providers))
         .route("/v1/codex/quota-sources", get(codex::list_codex_quota_sources))
         .route("/v1/codex/quota-overview", get(codex::get_codex_quota_overview))
+        .route("/v1/codex/automation-targets/discover", post(codex::discover_automation_targets))
+        .route("/v1/codex/automation-targets/try", post(codex::try_automation_target))
         .route("/v1/codex/auto-register", post(codex::auto_register_codex_account))
         .route("/v1/mailboxes/import", post(codex::import_managed_mailboxes))
         .route("/v1/mailboxes/poll/run", post(codex::poll_managed_mailboxes))

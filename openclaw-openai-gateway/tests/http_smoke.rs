@@ -1110,6 +1110,83 @@ async fn codex_registration_autoloop_runs_worker_and_mailbox_poll() {
     assert!(payload["worker"]["dispatched"].as_i64().unwrap() >= 1);
     assert!(payload["mailbox_poll"]["polled"].as_i64().unwrap() >= 1);
 }
+
+#[tokio::test]
+async fn codex_automation_target_discover_and_try_records_success_and_failure() {
+    let (app, db_path) = test_app().await;
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/automation-targets/discover")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "candidates": [
+                        {"target_key": "example-register-mail", "target_type": "registration"},
+                        {"target_key": "hard-captcha-site", "target_type": "registration"}
+                    ]
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let success = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/automation-targets/try")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "target_key": "example-register-mail",
+                    "parent_email": "parent6@example.com",
+                    "child_email": "child6@example.com"
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(success.status(), StatusCode::OK);
+    let success_body = to_bytes(success.into_body(), usize::MAX).await.unwrap();
+    let success_payload: serde_json::Value = serde_json::from_slice(&success_body).unwrap();
+    assert_eq!(success_payload["success"], true);
+    assert_eq!(success_payload["target_status"], "automatable");
+
+    let failure = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/codex/automation-targets/try")
+                .header("authorization", "Bearer sk-test")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({
+                    "target_key": "hard-captcha-site",
+                    "parent_email": "parent7@example.com",
+                    "child_email": "child7@example.com"
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(failure.status(), StatusCode::OK);
+    let failure_body = to_bytes(failure.into_body(), usize::MAX).await.unwrap();
+    let failure_payload: serde_json::Value = serde_json::from_slice(&failure_body).unwrap();
+    assert_eq!(failure_payload["success"], false);
+    assert_eq!(failure_payload["target_status"], "needs_optimization");
+    assert_eq!(failure_payload["report"]["notify_user"], true);
+
+    let conn = rusqlite::Connection::open(db_path).unwrap();
+    let automatable: String = conn.query_row("SELECT status FROM automation_targets WHERE target_key = 'example-register-mail'", [], |row| row.get(0)).unwrap();
+    let needs_fix: String = conn.query_row("SELECT status FROM automation_targets WHERE target_key = 'hard-captcha-site'", [], |row| row.get(0)).unwrap();
+    let attempts: i64 = conn.query_row("SELECT COUNT(*) FROM automation_attempts", [], |row| row.get(0)).unwrap();
+    assert_eq!(automatable, "automatable");
+    assert_eq!(needs_fix, "needs_optimization");
+    assert_eq!(attempts, 2);
+}
 #[tokio::test]
 async fn sqlite_file_is_seeded() {
     let (app, db_path) = test_app().await;

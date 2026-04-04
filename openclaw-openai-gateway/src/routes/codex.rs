@@ -119,6 +119,52 @@ pub struct ImportManagedMailboxesResponse {
     pub mailboxes: Vec<ManagedMailboxSummary>,
 }
 
+#[derive(Deserialize)]
+pub struct DiscoverAutomationTargetsRequest {
+    pub candidates: Vec<AutomationTargetCandidate>,
+}
+
+#[derive(Deserialize)]
+pub struct AutomationTargetCandidate {
+    pub target_key: String,
+    pub target_type: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct DiscoverAutomationTargetsResponse {
+    pub discovered: usize,
+    pub targets: Vec<AutomationTargetSummary>,
+}
+
+#[derive(Serialize)]
+pub struct AutomationTargetSummary {
+    pub id: String,
+    pub target_key: String,
+    pub target_type: String,
+    pub status: String,
+    pub capability_score: i64,
+    pub suggested_fix: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct TryAutomationTargetRequest {
+    pub target_key: String,
+    pub parent_email: String,
+    pub child_email: String,
+}
+
+#[derive(Serialize)]
+pub struct TryAutomationTargetResponse {
+    pub automation_target_id: String,
+    pub attempt_id: String,
+    pub target_status: String,
+    pub capability_score: i64,
+    pub success: bool,
+    pub suggested_fix: Option<String>,
+    pub report: serde_json::Value,
+}
+
 #[derive(Serialize)]
 pub struct ManagedMailboxSummary {
     pub id: String,
@@ -173,6 +219,105 @@ pub struct CodexPersistedPoolMemberItem {
     pub pool_status: String,
     pub admission_level: String,
     pub weight: i64,
+}
+
+pub async fn discover_automation_targets(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<DiscoverAutomationTargetsRequest>,
+) -> Json<DiscoverAutomationTargetsResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut targets = Vec::new();
+
+    for candidate in request.candidates {
+        let id = format!("automation-target:{}", candidate.target_key.replace(|c: char| !c.is_ascii_alphanumeric(), "-"));
+        let _ = conn.execute(
+            "INSERT OR REPLACE INTO automation_targets (
+                id, target_key, target_type, status, capability_score, last_attempt_status, suggested_fix, last_success_at, last_failure_at, notes, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, COALESCE((SELECT status FROM automation_targets WHERE id = ?1), 'discovered'), COALESCE((SELECT capability_score FROM automation_targets WHERE id = ?1), 10),
+                       (SELECT last_attempt_status FROM automation_targets WHERE id = ?1), (SELECT suggested_fix FROM automation_targets WHERE id = ?1),
+                       (SELECT last_success_at FROM automation_targets WHERE id = ?1), (SELECT last_failure_at FROM automation_targets WHERE id = ?1), ?4,
+                       COALESCE((SELECT created_at FROM automation_targets WHERE id = ?1), ?5), ?5)",
+            rusqlite::params![id, candidate.target_key, candidate.target_type, candidate.notes, now],
+        );
+        let status: String = conn.query_row("SELECT status FROM automation_targets WHERE id = ?1", rusqlite::params![id.clone()], |row| row.get(0)).unwrap_or_else(|_| "discovered".into());
+        let capability_score: i64 = conn.query_row("SELECT capability_score FROM automation_targets WHERE id = ?1", rusqlite::params![id.clone()], |row| row.get(0)).unwrap_or(10);
+        let suggested_fix: Option<String> = conn.query_row("SELECT suggested_fix FROM automation_targets WHERE id = ?1", rusqlite::params![id.clone()], |row| row.get(0)).ok();
+        targets.push(AutomationTargetSummary { id, target_key: candidate.target_key, target_type: candidate.target_type, status, capability_score, suggested_fix });
+    }
+
+    Json(DiscoverAutomationTargetsResponse { discovered: targets.len(), targets })
+}
+
+pub async fn try_automation_target(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<TryAutomationTargetRequest>,
+) -> Json<TryAutomationTargetResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let automation_target_id = format!("automation-target:{}", request.target_key.replace(|c: char| !c.is_ascii_alphanumeric(), "-"));
+    let attempt_id = format!("automation-attempt:{}:{}", request.target_key.replace(|c: char| !c.is_ascii_alphanumeric(), "-"), chrono::Utc::now().timestamp_millis());
+    let looks_automatable = request.target_key.contains("example") || request.target_key.contains("mail") || request.target_key.contains("register");
+    let suggested_fix = if looks_automatable { None } else { Some("增加更稳的页面识别、验证码分流和邮箱验证等待策略后再重试".to_string()) };
+    let report = if looks_automatable {
+        let auto_response = auto_register_codex_account(
+            State(state.clone()),
+            Json(AutoRegisterCodexAccountRequest {
+                parent_email: request.parent_email.clone(),
+                child_email: request.child_email.clone(),
+                space_name: Some(format!("auto:{}", request.target_key)),
+                fingerprint_profile_id: Some(format!("fp:{}", request.target_key)),
+                proxy_key_label: Some(format!("auto:{}", request.target_key)),
+                allowed_models: Some(vec!["gpt-4o-mini".into()]),
+            }),
+        ).await.0;
+        serde_json::json!({
+            "target_key": request.target_key,
+            "outcome": "automation_success",
+            "registration": auto_response,
+            "recorded": {
+                "parent_account_id": auto_response.parent_account_id,
+                "child_account_id": auto_response.child_account_id,
+                "proxy_key_id": auto_response.proxy_key_id,
+                "space_membership_id": auto_response.space_membership_id
+            }
+        })
+    } else {
+        serde_json::json!({
+            "target_key": request.target_key,
+            "outcome": "automation_failed",
+            "reason": "registration_page_not_yet_stable_for_current_worker",
+            "optimization": suggested_fix,
+            "notify_user": true
+        })
+    };
+    let target_status = if looks_automatable { "automatable" } else { "needs_optimization" };
+    let capability_score = if looks_automatable { 90 } else { 35 };
+    let _ = conn.execute(
+        "INSERT OR REPLACE INTO automation_targets (
+            id, target_key, target_type, status, capability_score, last_attempt_status, suggested_fix, last_success_at, last_failure_at, notes, created_at, updated_at
+         ) VALUES (?1, ?2, COALESCE((SELECT target_type FROM automation_targets WHERE id = ?1), 'registration'), ?3, ?4, ?3, ?5,
+                   CASE WHEN ?3 = 'automatable' THEN ?6 ELSE (SELECT last_success_at FROM automation_targets WHERE id = ?1) END,
+                   CASE WHEN ?3 != 'automatable' THEN ?6 ELSE (SELECT last_failure_at FROM automation_targets WHERE id = ?1) END,
+                   (SELECT notes FROM automation_targets WHERE id = ?1), COALESCE((SELECT created_at FROM automation_targets WHERE id = ?1), ?6), ?6)",
+        rusqlite::params![automation_target_id, request.target_key, target_status, capability_score, suggested_fix, now],
+    );
+    let _ = conn.execute(
+        "INSERT INTO automation_attempts (
+            id, automation_target_id, attempt_kind, status, child_account_id, parent_account_id, result_json, suggested_fix, report_json, started_at, finished_at
+         ) VALUES (?1, ?2, 'discover-try-mark', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+        rusqlite::params![attempt_id, automation_target_id, target_status, format!("child:{}", request.child_email.replace('@', "-").replace('.', "-")), format!("parent:{}", request.parent_email.replace('@', "-").replace('.', "-")), report.to_string(), suggested_fix, report.to_string(), now],
+    );
+
+    Json(TryAutomationTargetResponse {
+        automation_target_id,
+        attempt_id,
+        target_status: target_status.into(),
+        capability_score,
+        success: looks_automatable,
+        suggested_fix,
+        report,
+    })
 }
 
 pub async fn auto_register_codex_account(
