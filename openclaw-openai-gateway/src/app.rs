@@ -24,6 +24,7 @@ pub fn build_app(state: Arc<AppState>) -> Router {
         .route("/v1/mailboxes/import", post(codex::import_managed_mailboxes))
         .route("/v1/mailboxes/overview", get(codex::get_mailbox_pool_overview))
         .route("/v1/mailboxes/expand", post(codex::expand_mailbox_pool))
+        .route("/v1/mailboxes/tiering/run", post(codex::run_mailbox_tiering))
         .route("/v1/mailboxes/poll/run", post(codex::poll_managed_mailboxes))
         .route("/v1/codex/auto-register/autoloop/run", post(codex::run_registration_autoloop))
         .route("/v1/codex/auto-register/dispatch", post(codex::dispatch_registration_task))

@@ -1188,6 +1188,41 @@ async fn codex_automation_target_discover_and_try_records_success_and_failure() 
     assert_eq!(attempts, 2);
 }
 
+
+#[tokio::test]
+async fn mailbox_tiering_promotes_and_freezes_by_rules() {
+    let (app, db_path) = test_app().await;
+
+    let conn = rusqlite::Connection::open(&db_path).unwrap();
+    conn.execute("INSERT INTO managed_mailboxes (id, email, status, success_count, failure_count, quality_score, expansion_tier, reservation_count, created_at, updated_at) VALUES ('mb-premium', 'premium@example.com', 'active', 8, 1, 88, 'seed', 0, 'now', 'now')", []).unwrap();
+    conn.execute("INSERT INTO managed_mailboxes (id, email, status, success_count, failure_count, quality_score, expansion_tier, reservation_count, created_at, updated_at) VALUES ('mb-frozen', 'frozen@example.com', 'active', 0, 10, 20, 'scaled', 0, 'now', 'now')", []).unwrap();
+
+    let response = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/mailboxes/tiering/run")
+                .header("authorization", "Bearer sk-test")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(payload["promoted"], 1);
+    assert_eq!(payload["frozen"], 1);
+
+    let promoted: (String, String) = conn.query_row("SELECT expansion_tier, status FROM managed_mailboxes WHERE id = 'mb-premium'", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    let frozen: (String, String) = conn.query_row("SELECT expansion_tier, status FROM managed_mailboxes WHERE id = 'mb-frozen'", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+    let events: i64 = conn.query_row("SELECT COUNT(*) FROM mailbox_capacity_events", [], |row| row.get(0)).unwrap();
+    assert_eq!(promoted.0, "premium");
+    assert_eq!(promoted.1, "active");
+    assert_eq!(frozen.0, "seed");
+    assert_eq!(frozen.1, "frozen");
+    assert!(events >= 2);
+}
 #[tokio::test]
 async fn mailbox_pool_overview_and_expand_track_quality() {
     let (app, db_path) = test_app().await;

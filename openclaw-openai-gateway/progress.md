@@ -8,3 +8,5 @@
 - Validation: cargo test -q => 17 + 17 + 30 + 0 green.
 
 - Upgraded mailbox pool toward scalable quality model: quality_score, expansion_tier, reservation_count, capacity events, overview/expand endpoints, and tests.
+
+- Added fixed mailbox auto-tiering rules: promote/demote/freeze run endpoint, poll-time score-tier transitions, and regression tests.

@@ -202,6 +202,14 @@ pub struct ExpandMailboxPoolResponse {
 }
 
 #[derive(Serialize)]
+pub struct MailboxTieringRunResponse {
+    pub promoted: usize,
+    pub demoted: usize,
+    pub frozen: usize,
+    pub results: Vec<serde_json::Value>,
+}
+
+#[derive(Serialize)]
 pub struct MailboxPollRunResponse {
     pub polled: usize,
     pub results: Vec<serde_json::Value>,
@@ -595,7 +603,7 @@ pub async fn poll_managed_mailboxes(
                 rusqlite::params![verification_task_id, final_status, email, now, state_detail, next_check_at, mailbox_id],
             );
             let _ = conn.execute(
-                "UPDATE managed_mailboxes SET success_count = success_count + 1, quality_score = MIN(100, quality_score + 4), reservation_count = reservation_count + 1, last_checked_at = ?2, updated_at = ?2 WHERE id = ?1",
+                "UPDATE managed_mailboxes SET success_count = success_count + 1, quality_score = MIN(100, quality_score + 4), expansion_tier = CASE WHEN MIN(100, quality_score + 4) >= 85 THEN 'premium' WHEN MIN(100, quality_score + 4) >= 70 THEN 'scaled' ELSE expansion_tier END, reservation_count = reservation_count + 1, last_checked_at = ?2, updated_at = ?2 WHERE id = ?1",
                 rusqlite::params![mailbox_id, now],
             );
             let _ = conn.execute(
@@ -611,7 +619,7 @@ pub async fn poll_managed_mailboxes(
                 rusqlite::params![verification_task_id, now, next_check_at],
             );
             let _ = conn.execute(
-                "UPDATE managed_mailboxes SET failure_count = failure_count + 1, quality_score = MAX(0, quality_score - 6), cooldown_until = ?1, last_error = 'no_available_mailbox', updated_at = ?2 WHERE id IN (SELECT id FROM managed_mailboxes WHERE status = 'active')",
+                "UPDATE managed_mailboxes SET failure_count = failure_count + 1, quality_score = MAX(0, quality_score - 6), expansion_tier = CASE WHEN MAX(0, quality_score - 6) < 45 THEN 'seed' ELSE expansion_tier END, status = CASE WHEN MAX(0, quality_score - 6) < 25 THEN 'frozen' ELSE status END, cooldown_until = ?1, last_error = 'no_available_mailbox', updated_at = ?2 WHERE id IN (SELECT id FROM managed_mailboxes WHERE status = 'active')",
                 rusqlite::params![next_check_at, now],
             );
             results.push(result);
@@ -667,6 +675,59 @@ pub async fn expand_mailbox_pool(
         }
     }
     Json(ExpandMailboxPoolResponse { updated, tier })
+}
+
+pub async fn run_mailbox_tiering(
+    State(state): State<Arc<AppState>>,
+) -> Json<MailboxTieringRunResponse> {
+    let conn = rusqlite::Connection::open(&state.config.sqlite_path).expect("open sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut stmt = conn.prepare("SELECT id, quality_score, failure_count, success_count, expansion_tier, status FROM managed_mailboxes ORDER BY id ASC").expect("prepare tiering");
+    let rows = stmt.query_map([], |row| Ok((
+        row.get::<_, String>(0)?,
+        row.get::<_, i64>(1)?,
+        row.get::<_, i64>(2)?,
+        row.get::<_, i64>(3)?,
+        row.get::<_, String>(4)?,
+        row.get::<_, String>(5)?,
+    ))).expect("query tiering");
+    let mut promoted = 0usize;
+    let mut demoted = 0usize;
+    let mut frozen = 0usize;
+    let mut results = Vec::new();
+    for row in rows.filter_map(Result::ok) {
+        let (id, quality_score, failure_count, success_count, old_tier, old_status) = row;
+        let mut new_tier = old_tier.clone();
+        let mut new_status = old_status.clone();
+        if quality_score >= 85 && failure_count <= 2 {
+            new_tier = "premium".into();
+        } else if quality_score >= 70 && failure_count <= 4 {
+            new_tier = "scaled".into();
+        } else if quality_score < 45 || failure_count >= 6 {
+            new_tier = "seed".into();
+        }
+        if quality_score < 25 || failure_count >= 10 {
+            new_status = "frozen".into();
+        } else if old_status == "frozen" && quality_score >= 40 {
+            new_status = "active".into();
+        }
+        if new_tier != old_tier || new_status != old_status {
+            let _ = conn.execute(
+                "UPDATE managed_mailboxes SET expansion_tier = ?2, status = ?3, updated_at = ?4 WHERE id = ?1",
+                rusqlite::params![id.clone(), new_tier.clone(), new_status.clone(), now.clone()],
+            );
+            let delta = if new_tier == "premium" { 15 } else if new_tier == "scaled" { 8 } else { -8 };
+            let _ = conn.execute(
+                "INSERT INTO mailbox_capacity_events (id, mailbox_id, event_type, delta, detail_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![format!("mailbox-tiering:{}:{}", id, chrono::Utc::now().timestamp_millis()), id.clone(), if new_status == "frozen" { "freeze" } else if new_tier > old_tier { "auto-promote" } else { "auto-demote" }, delta, serde_json::json!({"from_tier": old_tier, "to_tier": new_tier, "from_status": old_status, "to_status": new_status, "quality_score": quality_score, "failure_count": failure_count, "success_count": success_count}).to_string(), now.clone()],
+            );
+            if new_status == "frozen" && old_status != "frozen" { frozen += 1; }
+            else if (new_tier == "scaled" || new_tier == "premium") && new_tier != old_tier { promoted += 1; }
+            else if new_tier == "seed" && old_tier != "seed" { demoted += 1; }
+            results.push(serde_json::json!({"mailbox_id": id, "quality_score": quality_score, "failure_count": failure_count, "success_count": success_count, "old_tier": old_tier, "new_tier": new_tier, "old_status": old_status, "new_status": new_status}));
+        }
+    }
+    Json(MailboxTieringRunResponse { promoted, demoted, frozen, results })
 }
 
 pub async fn run_registration_autoloop(
