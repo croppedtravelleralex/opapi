@@ -4,6 +4,7 @@ use serde_json::Value;
 use std::sync::Arc;
 
 pub struct GatewayProvider {
+    #[allow(dead_code)]
     client: Arc<OpenClawWsClient>,
 }
 

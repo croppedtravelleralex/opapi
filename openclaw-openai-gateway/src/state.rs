@@ -22,15 +22,22 @@ use std::sync::Arc;
 pub struct AppState {
     pub config: Config,
     pub ws_client: Arc<OpenClawWsClient>,
+    #[allow(dead_code)]
     pub gateway_provider: Arc<GatewayProvider>,
+    #[allow(dead_code)]
     pub model_catalog: Vec<ModelCatalogEntry>,
+    #[allow(dead_code)]
     pub provider_pool: Vec<ProviderDescriptor>,
+    #[allow(dead_code)]
     pub store: InMemoryStore,
+    #[allow(dead_code)]
     pub model_repo: ModelRepository,
+    #[allow(dead_code)]
     pub provider_repo: ProviderRepository,
     pub audit_repo: AuditRepository,
     pub sqlite_model_repo: SqliteModelRepository,
     pub sqlite_provider_repo: SqliteProviderRepository,
+    #[allow(dead_code)]
     pub sqlite_audit_repo: SqliteAuditRepository,
 }
 
@@ -39,6 +46,7 @@ impl AppState {
         let ws_client = Arc::new(OpenClawWsClient::new(
             config.openclaw_ws_url.clone(),
             config.openclaw_api_timeout_ms,
+            config.openclaw_ws_transport_mode,
         ));
         let gateway_provider = Arc::new(GatewayProvider::new(ws_client.clone()));
         let model_catalog = load_from_config(&config.models);

@@ -91,7 +91,19 @@ fn normalize_real_payload(payload: Value) -> Result<Value, String> {
     if let Some(upstream_payload) = payload.get("upstream_payload") {
         return Ok(upstream_payload.clone());
     }
+    if let Some(upstream_payload) = payload
+        .get("data")
+        .and_then(|v| v.get("upstream_payload"))
+    {
+        return Ok(upstream_payload.clone());
+    }
+    if let Some(upstream_payload) = payload.get("payload") {
+        return Ok(upstream_payload.clone());
+    }
     if let Some(error) = payload.get("error") {
+        return Err(format!("real_ws_upstream_error:{}", error));
+    }
+    if let Some(error) = payload.get("data").and_then(|v| v.get("error")) {
         return Err(format!("real_ws_upstream_error:{}", error));
     }
     Ok(payload)
@@ -154,5 +166,29 @@ mod tests {
         .unwrap();
         assert_eq!(parsed["output"][0]["content"][0]["handshake"]["session_namespace"], "resp-ns");
         assert_eq!(parsed["output"][0]["content"][0]["handshake"]["session_key_hint"], "resp-key");
+    }
+
+    #[test]
+    fn normalize_real_payload_accepts_nested_data_upstream_payload() {
+        let parsed = normalize_real_payload(json!({
+            "data": {
+                "upstream_payload": {
+                    "runtime": {"session_namespace": "data-ns"}
+                }
+            }
+        }))
+        .unwrap();
+        assert_eq!(parsed["runtime"]["session_namespace"], "data-ns");
+    }
+
+    #[test]
+    fn normalize_real_payload_accepts_payload_alias() {
+        let parsed = normalize_real_payload(json!({
+            "payload": {
+                "handshake": {"session_key_hint": "alias-key"}
+            }
+        }))
+        .unwrap();
+        assert_eq!(parsed["handshake"]["session_key_hint"], "alias-key");
     }
 }
