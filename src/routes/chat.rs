@@ -40,12 +40,29 @@ pub async fn create_chat_completion(
     };
 
     let client = reqwest::Client::new();
-    let upstream_url = format!("{}/v1/chat/completions", upstream.base_url);
+    let upstream_model = if upstream.name == "date-now" {
+        "date-now-gpt-5.4".to_string()
+    } else {
+        payload.model.clone()
+    };
+    let upstream_url = if upstream.append_v1 {
+        format!("{}/v1/chat/completions", upstream.base_url)
+    } else {
+        format!("{}/chat/completions", upstream.base_url)
+    };
+
+    let upstream_payload = serde_json::json!({
+        "model": upstream_model,
+        "messages": payload.messages,
+        "temperature": payload.temperature,
+        "max_tokens": payload.max_tokens,
+        "stream": payload.stream
+    });
 
     let response = match client
         .post(&upstream_url)
         .bearer_auth(upstream.api_key)
-        .json(&payload)
+        .json(&upstream_payload)
         .send()
         .await
     {

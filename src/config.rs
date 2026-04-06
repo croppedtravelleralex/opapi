@@ -3,8 +3,10 @@ use std::{collections::HashMap, fs, path::Path};
 
 #[derive(Clone, Debug)]
 pub struct UpstreamConfig {
+    pub name: String,
     pub base_url: String,
     pub api_key: String,
+    pub append_v1: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -16,7 +18,6 @@ pub struct Config {
     pub upstream_base_url: Option<String>,
     pub upstream_api_key: Option<String>,
     pub gateway_api_keys: Vec<String>,
-    pub gateway_api_keys_file: Option<String>,
     pub upstreams: HashMap<String, UpstreamConfig>,
     pub model_upstream_map: HashMap<String, String>,
 }
@@ -72,7 +73,6 @@ impl Config {
             upstream_base_url,
             upstream_api_key,
             gateway_api_keys,
-            gateway_api_keys_file,
             upstreams,
             model_upstream_map,
         })
@@ -89,8 +89,10 @@ impl Config {
 
         match (&self.upstream_base_url, &self.upstream_api_key) {
             (Some(base_url), Some(api_key)) => Some(UpstreamConfig {
+                name: "default".to_string(),
                 base_url: base_url.clone(),
                 api_key: api_key.clone(),
+                append_v1: should_append_v1(base_url, None),
             }),
             _ => None,
         }
@@ -116,19 +118,30 @@ fn parse_upstreams(raw: String) -> HashMap<String, UpstreamConfig> {
         let name = parts.next().unwrap_or_default();
         let base_url = parts.next().unwrap_or_default().trim_end_matches('/');
         let api_key = parts.next().unwrap_or_default();
+        let append_v1_hint = parts.next();
 
         if !name.is_empty() && !base_url.is_empty() && !api_key.is_empty() {
             map.insert(
                 name.to_string(),
                 UpstreamConfig {
+                    name: name.to_string(),
                     base_url: base_url.to_string(),
                     api_key: api_key.to_string(),
+                    append_v1: should_append_v1(base_url, append_v1_hint),
                 },
             );
         }
     }
 
     map
+}
+
+fn should_append_v1(base_url: &str, hint: Option<&str>) -> bool {
+    match hint {
+        Some(v) if v.eq_ignore_ascii_case("append-v1") => true,
+        Some(v) if v.eq_ignore_ascii_case("no-append-v1") => false,
+        _ => !base_url.ends_with("/v1"),
+    }
 }
 
 fn parse_model_upstream_map(raw: String) -> HashMap<String, String> {
