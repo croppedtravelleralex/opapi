@@ -19,6 +19,7 @@
 - 已接入本地 SQLite，启动时会初始化 `data/gateway.db`
 - 已落最小账号池 store，并提供 `/v1/accounts` 只读视图
 - 已提供对外账号导入入口，可接入 `auto_reg` 等注册机产出
+- 已新增 `CONFIG_MAPPING.md`，用于统一双项目配置映射边界
 - 配置设计文档 `CONFIG.md`
 - 数据模型文档 `DATA_MODEL.md`
 - 路由演进文档 `ROUTING_PLAN.md`
@@ -192,4 +193,5 @@ curl -X POST http://127.0.0.1:8088/v1/chat/completions \
 5. `PROGRESS.md`
 6. `ROUTING_PLAN.md`
 7. `DATA_MODEL.md`
-8. `src/`
+8. `CONFIG_MAPPING.md`
+9. `src/`
