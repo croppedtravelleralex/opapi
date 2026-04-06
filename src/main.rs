@@ -3,6 +3,7 @@ mod auth;
 mod config;
 mod error;
 mod routes;
+mod store;
 
 use anyhow::Result;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -17,6 +18,10 @@ async fn main() -> Result<()> {
         .init();
 
     let config = config::Config::from_env()?;
+    let store = store::AccountStore::open("data/gateway.db")?;
+    let seeded_accounts = store.list_accounts()?;
+    tracing::info!(count = seeded_accounts.len(), "account store initialized");
+
     let listener = tokio::net::TcpListener::bind(config.bind_addr()).await?;
     tracing::info!(addr = %config.bind_addr(), title = %config.api_title, "gateway listening");
 
