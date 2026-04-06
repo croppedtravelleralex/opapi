@@ -25,6 +25,7 @@ async fn main() -> Result<()> {
     let listener = tokio::net::TcpListener::bind(config.bind_addr()).await?;
     tracing::info!(addr = %config.bind_addr(), title = %config.api_title, "gateway listening");
 
-    axum::serve(listener, app::build_router(config)).await?;
+    let state = app::AppState { config, store };
+    axum::serve(listener, app::build_router(state)).await?;
     Ok(())
 }

@@ -7,14 +7,16 @@ use axum::{
 };
 use serde_json::json;
 
-use crate::config::Config;
+use crate::app::AppState;
 
 pub async fn require_bearer_auth(
-    State(config): State<Config>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     request: axum::extract::Request,
     next: Next,
 ) -> Response {
+    let config = &state.config;
+
     if config.gateway_api_keys.is_empty() {
         return next.run(request).await;
     }

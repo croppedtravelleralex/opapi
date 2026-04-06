@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    config::Config,
+    app::AppState,
     error::{gateway_error, normalize_upstream_error},
 };
 
@@ -28,9 +28,11 @@ pub struct ChatMessage {
 }
 
 pub async fn create_chat_completion(
-    State(config): State<Config>,
+    State(state): State<AppState>,
     Json(payload): Json<ChatCompletionRequest>,
 ) -> Response {
+    let config = &state.config;
+
     let upstream = match config.upstream_for_model(&payload.model) {
         Some(v) => v,
         None => {
