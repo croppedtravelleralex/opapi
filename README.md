@@ -4,7 +4,7 @@
 
 这是一个围绕 **Sub2API / ChatGPT Business 账号池反代服务自动化** 的项目目录，目标是把现有方案文档逐步落地为一个真实可运行的 API 项目。
 
-当前阶段已经从纯文档整理，推进到 **Rust 最小 API 骨架 + 静态多上游路由阶段**。
+当前阶段已经从纯文档整理，推进到 **Rust 最小可用网关 + 鉴权验证 + 静态多上游 smoke 验证阶段**。
 
 ## 当前已有内容
 
@@ -12,8 +12,10 @@
 - Ubuntu + Docker 部署手册
 - 项目入口/计划/状态/待办/进展文档骨架
 - Rust 最小 API 骨架（`/healthz`、`/readyz`、`/v1/models`、`/v1/chat/completions`）
-- `POST /v1/chat/completions` 已支持 **单上游透传** 与 **静态多上游模型映射预留**
-- 最小网关鉴权设计（`GATEWAY_API_KEYS` / `GATEWAY_API_KEYS_FILE`）
+- `POST /v1/chat/completions` 已支持 **单上游透传** 与 **静态多上游模型映射**
+- `/v1/*` 已接入最小 Bearer 鉴权，并已通过一轮真实 401/200 联调
+- 多上游 `/v1` 拼接语义已统一，支持自动推断与显式覆盖
+- `/v1/models` 已可返回模型对应的上游与目标端点视图
 - 配置设计文档 `CONFIG.md`
 - 数据模型文档 `DATA_MODEL.md`
 - 路由演进文档 `ROUTING_PLAN.md`
@@ -44,12 +46,27 @@ UPSTREAM_BASE_URL=https://your-upstream.example.com
 UPSTREAM_API_KEY=sk-xxxx
 ```
 
+默认规则：
+- 如果 `UPSTREAM_BASE_URL` **不以 `/v1` 结尾**，网关会自动补 `/v1/chat/completions`
+- 如果 `UPSTREAM_BASE_URL` **已经以 `/v1` 结尾**，网关会直接拼到 `/chat/completions`
+
 ## 静态多上游配置
 
 ```env
 UPSTREAMS=oa|https://api.openai.com|sk-oa;iflow|https://example-iflow.test|sk-iflow
 MODEL_UPSTREAM_MAP=gpt-5.4=oa,qwen3-max=iflow
 ```
+
+可选第 4 段用于覆盖 `/v1` 规则：
+
+```env
+UPSTREAMS=oa|https://api.openai.com|sk-oa|append-v1;iflow|https://example-iflow.test/v1|sk-iflow|no-append-v1
+```
+
+规则说明：
+- `append-v1`：强制拼接成 `.../v1/chat/completions`
+- `no-append-v1`：强制拼接成 `.../chat/completions`
+- 不写第 4 段：按 `base_url` 是否以 `/v1` 结尾自动判断
 
 ## 快速验证
 
@@ -82,22 +99,22 @@ curl -X POST http://127.0.0.1:8088/v1/chat/completions \
 
 ### 本地 mock 双上游联调
 
+直接运行：
+
 ```bash
-python3 scripts/mock_upstream.py 19091 mock-a &
-python3 scripts/mock_upstream.py 19092 mock-b &
-
-PORT=8088 \
-GATEWAY_API_KEYS=sk-local-demo \
-UPSTREAMS='a|http://127.0.0.1:19091|dummy;b|http://127.0.0.1:19092|dummy' \
-MODEL_UPSTREAM_MAP='gpt-5.4=a,qwen3-max=b' \
-cargo run
-
-./scripts/smoke.sh http://127.0.0.1:8088 sk-local-demo gpt-5.4 qwen3-max
+./scripts/smoke_multi_upstream.sh
 ```
+
+脚本会自动完成：
+- 启动两个 mock upstream
+- 启动本地网关
+- 验证 `/healthz`
+- 验证 `/v1/models` 的 401/200 鉴权行为
+- 验证 `gpt-5.4` 与 `qwen3-max` 分别路由到不同 mock upstream
 
 ## 当前目标
 
-优先把这个目录从“文档堆”推进成“有统一入口、有清晰主线、可开始编码和验证的项目目录”。
+优先把这个目录从“文档堆”推进成“**最小可用、可验证、可继续扩展的网关项目**”。
 
 ## 当前建议阅读顺序
 
@@ -106,5 +123,5 @@ cargo run
 3. `FEATURES.md`
 4. `STATUS.md`
 5. `PROGRESS.md`
-6. 原始方案文档
+6. `ROUTING_PLAN.md`
 7. `src/`
