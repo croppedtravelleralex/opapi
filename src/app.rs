@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 
-use crate::{auth, routes, store::AccountStore, config::Config};
+use crate::{auth, config::Config, routes, store::AccountStore};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -17,6 +17,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/v1/models", get(routes::models::list_models))
         .route("/v1/chat/completions", post(routes::chat::create_chat_completion))
         .route("/v1/accounts", get(routes::accounts::list_accounts))
+        .route("/v1/accounts/import", post(routes::accounts::import_accounts))
+        .route("/v1/accounts/status", post(routes::accounts::update_account_status))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_bearer_auth,

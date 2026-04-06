@@ -18,6 +18,7 @@
 - `/v1/models` 已可返回模型对应的上游、目标端点与基础状态视图
 - 已接入本地 SQLite，启动时会初始化 `data/gateway.db`
 - 已落最小账号池 store，并提供 `/v1/accounts` 只读视图
+- 已提供对外账号导入入口，可接入 `auto_reg` 等注册机产出
 - 配置设计文档 `CONFIG.md`
 - 数据模型文档 `DATA_MODEL.md`
 - 路由演进文档 `ROUTING_PLAN.md`
@@ -85,6 +86,53 @@ UPSTREAMS=oa|https://api.openai.com|sk-oa|append-v1;iflow|https://example-iflow.
 ```bash
 curl http://127.0.0.1:8088/v1/accounts \
   -H 'Authorization: Bearer sk-local-demo'
+```
+
+### 导入注册机账号（需要 Bearer）
+
+```bash
+curl -X POST http://127.0.0.1:8088/v1/accounts/import \
+  -H 'Authorization: Bearer sk-local-demo' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "accounts": [
+      {
+        "platform": "chatgpt",
+        "email": "demo@example.com",
+        "password": "pass123",
+        "user_id": "user-1",
+        "region": "us",
+        "token": "access-token",
+        "refresh_token": "refresh-token",
+        "status": "registered",
+        "trial_end_time": 0,
+        "cashier_url": "",
+        "extra_json": "{}",
+        "provider": "chatgpt",
+        "label": "chatgpt:demo@example.com",
+        "base_url": "https://chatgpt.example/v1",
+        "model_scope": "gpt-5.4"
+      }
+    ]
+  }'
+```
+
+### 更新账号状态（需要 Bearer）
+
+```bash
+curl -X POST http://127.0.0.1:8088/v1/accounts/status \
+  -H 'Authorization: Bearer sk-local-demo' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "platform": "chatgpt",
+    "email": "demo@example.com",
+    "password": "pass123",
+    "status": "active",
+    "provider": "chatgpt",
+    "label": "chatgpt:demo@example.com",
+    "base_url": "https://chatgpt.example/v1",
+    "model_scope": "gpt-5.4"
+  }'
 ```
 
 ### 查看模型路由视图（需要 Bearer）
