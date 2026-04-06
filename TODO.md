@@ -12,30 +12,29 @@
 - [x] 建立 `PROGRESS.md`
 - [x] 建立 `TODO.md`
 - [x] 设计并落下 Rust 最小代码骨架
-- [x] 补 `.gitignore`
-- [x] 补 `CONFIG.md` 与 `DATA_MODEL.md`
-- [x] 补 `README` 启动说明与 curl 示例
-- [x] 补 `/v1/chat/completions` 占位接口
-- [x] 清理 Git 仓库中误提交的 `target/`
-- [x] 跑通 `cargo run` 最小启动验证
-- [x] 明确 V1 真实转发闭环
-- [x] 跑通 Bearer 鉴权真实验证
-- [x] 跑通单条 chat 透传真实验证
-- [ ] 统一多上游 `/v1` 路径拼接语义
-- [ ] 跑通双上游 smoke 验证
-- [ ] 收口 README / STATUS / TODO / PROGRESS 同步
+- [x] 跑通最小启动验证与 Bearer 鉴权验证
+- [x] 收口多上游 `/v1` 路径语义
+- [x] 跑通双上游 smoke 验证
+- [x] 增强 `/v1/models` 路由视图与状态视图
+- [x] 补上游错误映射与归一化
+- [x] 落下 SQLite 最小账号池 store
+- [x] 提供 `/v1/accounts` 只读接口
+- [x] 提供 `/v1/accounts/import` 与 `/v1/accounts/status`
+- [x] 将规划正式重排为：注册机 = `auto_reg`，Rust `api` = 账号池 / 路由池 / 网关
+- [ ] 同步清理 `STATUS / TODO / PROGRESS / README` 与当前真实状态
+- [ ] 评估并整理 `data/gateway.db` 是否继续纳入版本库
+- [ ] 收口 `task_plan.md / findings.md / progress.md` 等工作态文件
 
 ## P1
 
-- [x] 设计鉴权入口
-- [x] 设计上游配置与路由方式
-- [x] 设计 health / models 之外的真实转发接口
-- [x] 设计最小部署验证流程
-- [ ] 让 `/v1/models` 具备更真实的路由视图
-- [ ] 继续补错误映射与上游异常处理
+- [ ] 设计指纹浏览器执行器抽象层
+- [ ] 输出双项目配置映射表
+- [ ] 写 `auto_reg -> Rust api` 对接适配器
+- [ ] 让导入账号逐步参与实际路由
+- [ ] 继续补账号状态 / 健康状态 / fallback 基础
 
 ## P2
 
-- [ ] 评估是否拆分为真正独立仓库
-- [ ] 评估自动化 OAuth/健康检查脚本落地顺序
+- [ ] 评估动态路由模式的最小落地路径
 - [ ] 评估监控告警与审计模块前置程度
+- [ ] 评估注册机任务调度与网关资源池的长期协作方式
