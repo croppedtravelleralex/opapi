@@ -7,7 +7,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{config::Config, error::gateway_error};
+use crate::{
+    config::Config,
+    error::{gateway_error, normalize_upstream_error},
+};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ChatCompletionRequest {
@@ -87,6 +90,10 @@ pub async fn create_chat_completion(
             )
         }
     };
+
+    if !status.is_success() {
+        return normalize_upstream_error(status, body);
+    }
 
     (status, Json(body)).into_response()
 }

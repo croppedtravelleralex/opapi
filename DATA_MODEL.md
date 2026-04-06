@@ -24,6 +24,8 @@
 - `id`
 - `object`
 - `owned_by`
+- `upstream`
+- `endpoint`
 - `provider`（后续补）
 - `availability`（后续补）
 
@@ -54,6 +56,15 @@
 - `model`
 - `choices`
 
+### 6. UpstreamDescriptor
+描述一个静态上游配置槽位。
+
+核心字段：
+- `name`
+- `base_url`
+- `append_v1`
+- `api_key`（仅运行时使用，不对外暴露）
+
 ---
 
 ## 下一阶段对象
@@ -61,14 +72,43 @@
 ### Account
 用于表示一个上游账号。
 
+建议最小字段：
+- `id`
+- `provider`
+- `label`
+- `status`
+- `credential_ref`
+- `quota_state`
+- `last_health_at`
+
 ### Provider
 用于表示一个上游供应商或通道。
+
+建议最小字段：
+- `id`
+- `name`
+- `base_url`
+- `kind`
+- `supports_models`
 
 ### RoutePolicy
 用于表示模型到上游的路由规则。
 
+建议最小字段：
+- `model`
+- `candidate_upstreams`
+- `priority`
+- `fallback_policy`
+
 ### HealthSnapshot
 用于表示上游健康检查快照。
+
+建议最小字段：
+- `target`
+- `status`
+- `latency_ms`
+- `error_rate`
+- `checked_at`
 
 ---
 
@@ -78,3 +118,4 @@
 2. 再定义调度需要的对象
 3. 再定义账号池和健康系统对象
 4. 不把长期架构一次性压进 V1
+5. 当前阶段优先围绕 **静态多上游可解释性 + 最小错误处理 + 后续账号池扩展接口** 来扩模型
